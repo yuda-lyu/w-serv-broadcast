@@ -1,0 +1,37 @@
+{
+  "name": "w-serv-broadcast",
+  "version": "1.0.0",
+  "main": "dist/w-serv-broadcast-server.umd.js",
+  "dependencies": {
+    "lodash-es": "^4.17.21",
+    "w-sync-webdata": "^1.0.22",
+    "wsemi": "^1.7.70"
+  },
+  "devDependencies": {
+    "form-data": "^4.0.2",
+    "w-converhp": "^2.0.1",
+    "w-package-tools": "^1.0.82"
+  },
+  "scripts": {
+    "test": "mocha --parallel --timeout 60000 --experimental-modules",
+    "deploy": "gh-pages -d docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yuda-lyu/w-serv-broadcast.git"
+  },
+  "keywords": [
+    "package",
+    "tool",
+    "operator",
+    "control",
+    "synchronize",
+    "w-converhp",
+    "w-conversi",
+    "w-converws",
+    "nodejs",
+    "browser"
+  ],
+  "author": "yuda-lyu(semisphere)",
+  "license": "MIT"
+}
