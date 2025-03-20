@@ -5,6 +5,7 @@ import cloneDeep from 'lodash-es/cloneDeep.js'
 import iseobj from 'wsemi/src/iseobj.mjs'
 import haskey from 'wsemi/src/haskey.mjs'
 import alive from 'wsemi/src/alive.mjs'
+import evem from 'wsemi/src/evem.mjs'
 
 
 /**
@@ -65,14 +66,15 @@ function WServBroadcastServer(instWConverServer, opt = {}) {
 
     //check
     if (!iseobj(instWConverServer)) {
-        throw new Error(`invalid instWConverServer`)
+        console.log('instWConverServer is not an effective object, and set instWConverServer to an EventEmitter')
+        instWConverServer = evem()
     }
     if (!haskey(instWConverServer, 'emit')) {
         throw new Error(`instWConverServer is not an EventEmitter`)
     }
 
     //eeEmit
-    function eeEmit(name, ...args) {
+    let eeEmit = (name, ...args) => {
         setTimeout(() => {
             instWConverServer.emit(name, ...args)
         }, 1)
