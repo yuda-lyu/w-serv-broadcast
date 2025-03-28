@@ -9,11 +9,11 @@ let opt = {
     apiName: 'api',
 }
 
-//initWConverhpClient
-let initWConverhpClient = new WConverhpClient(opt)
+//instWConverClient
+let instWConverClient = new WConverhpClient(opt)
 
 //wo
-let wo = WServBroadcastClient(initWConverhpClient)
+let wo = WServBroadcastClient(instWConverClient)
 
 wo.on('broadcast', function(data) {
     console.log(`broadcast`, data)

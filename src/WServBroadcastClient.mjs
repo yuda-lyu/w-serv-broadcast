@@ -30,11 +30,11 @@ import evem from 'wsemi/src/evem.mjs'
  *     apiName: 'api',
  * }
  *
- * //initWConverhpClient
- * let initWConverhpClient = new WConverhpClient(opt)
+ * //instWConverClient
+ * let instWConverClient = new WConverhpClient(opt)
  *
  * //wo
- * let wo = WServBroadcastClient(initWConverhpClient)
+ * let wo = WServBroadcastClient(instWConverClient)
  *
  * wo.on('broadcast', function(data) {
  *     console.log(`broadcast`, data)
@@ -44,15 +44,15 @@ import evem from 'wsemi/src/evem.mjs'
  * })
  *
  */
-function WServBroadcastClient(initWConverhpClient, opt = {}) {
+function WServBroadcastClient(instWConverClient, opt = {}) {
 
     //check
-    if (!iseobj(initWConverhpClient)) {
-        console.log('initWConverhpClient is not an effective object, and set initWConverhpClient to an EventEmitter')
-        initWConverhpClient = evem()
+    if (!iseobj(instWConverClient)) {
+        console.log('instWConverClient is not an effective object, and set instWConverClient to an EventEmitter')
+        instWConverClient = evem()
     }
-    if (!haskey(initWConverhpClient, 'emit')) {
-        throw new Error(`initWConverhpClient is not an EventEmitter`)
+    if (!haskey(instWConverClient, 'emit')) {
+        throw new Error(`instWConverClient is not an EventEmitter`)
     }
 
     //timePolling
@@ -63,7 +63,7 @@ function WServBroadcastClient(initWConverhpClient, opt = {}) {
     timePolling = cint(timePolling)
 
     //clientId
-    let clientId = get(initWConverhpClient, 'clientId')
+    let clientId = get(instWConverClient, 'clientId')
     if (!isestr(clientId)) {
         clientId = genID() //供伺服器識別真實連線使用者
     }
@@ -71,7 +71,7 @@ function WServBroadcastClient(initWConverhpClient, opt = {}) {
     //eeEmit
     let eeEmit = (name, ...args) => {
         setTimeout(() => {
-            initWConverhpClient.emit(name, ...args)
+            instWConverClient.emit(name, ...args)
         }, 1)
     }
 
@@ -79,7 +79,7 @@ function WServBroadcastClient(initWConverhpClient, opt = {}) {
     setInterval(() => {
 
         //execute
-        initWConverhpClient.execute('[sys:polling]', { clientId },
+        instWConverClient.execute('[sys:polling]', { clientId },
             function (prog, p, m) {
                 // console.log('client web: execute: prog', prog, p, m)
             })
@@ -104,7 +104,7 @@ function WServBroadcastClient(initWConverhpClient, opt = {}) {
 
     }, timePolling)
 
-    return initWConverhpClient
+    return instWConverClient
 }
 
 
