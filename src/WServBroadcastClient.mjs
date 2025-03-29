@@ -91,18 +91,12 @@ function WServBroadcastClient(instWConverClient, opt = {}) {
                 //connFirst
                 if (connFirst === false) {
                     connFirst = true
-
-                    //emit
-                    instWConverClient.emit('openOnce')
-
+                    eeEmit('openOnce')
                 }
 
                 //connIng
                 if (connIng === false) {
-
-                    //emit
-                    instWConverClient.emit('open')
-
+                    eeEmit('open')
                 }
                 connIng = true
 
@@ -119,11 +113,9 @@ function WServBroadcastClient(instWConverClient, opt = {}) {
 
             })
             .catch(function (err) {
-                console.log('polling err', err)
-
-                //connIng
+                // console.log('polling err', err)
                 connIng = false
-
+                eeEmit('error', err)
             })
 
     }, timePolling)
