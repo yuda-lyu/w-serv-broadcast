@@ -18,6 +18,12 @@ let wo = WServBroadcastClient(instWConverClient)
 wo.on('broadcast', function(data) {
     console.log(`broadcast`, data)
 })
+wo.on('openOnce', function() {
+    console.log(`openOnce`)
+})
+wo.on('open', function() {
+    console.log(`open`)
+})
 wo.on('error', function(err) {
     console.log(`error`, err)
 })

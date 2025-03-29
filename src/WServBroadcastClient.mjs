@@ -17,7 +17,7 @@ import evem from 'wsemi/src/evem.mjs'
  * @param {Object} instWConverClient 輸入通訊服務實體物件，可使用例如WConverhpClient等建立
  * @param {Object} [opt={}] 輸入設定物件，預設{}
  * @param {Integer} [opt.timePolling=2000] 輸入每次輪詢間隔時間整數，預設2000
- * @returns {Object} 回傳事件物件，可監聽error事件
+ * @returns {Object} 回傳事件物件，可監聽open、openOnce、error事件
  * @example
  *
  * import FormData from 'form-data'
@@ -76,6 +76,8 @@ function WServBroadcastClient(instWConverClient, opt = {}) {
     }
 
     //setInterval
+    let connFirst = false
+    let connIng = false
     setInterval(() => {
 
         //execute
@@ -85,6 +87,24 @@ function WServBroadcastClient(instWConverClient, opt = {}) {
             })
             .then(function(res) {
                 // console.log('polling res', res)
+
+                //connFirst
+                if (connFirst === false) {
+                    connFirst = true
+
+                    //emit
+                    instWConverClient.emit('openOnce')
+
+                }
+
+                //connIng
+                if (connIng === false) {
+
+                    //emit
+                    instWConverClient.emit('open')
+
+                }
+                connIng = true
 
                 //check
                 if (!isearr(res)) {
@@ -100,6 +120,10 @@ function WServBroadcastClient(instWConverClient, opt = {}) {
             })
             .catch(function (err) {
                 console.log('polling err', err)
+
+                //connIng
+                connIng = false
+
             })
 
     }, timePolling)

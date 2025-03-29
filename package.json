@@ -1,6 +1,6 @@
 {
   "name": "w-serv-broadcast",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "main": "dist/w-serv-broadcast-server.umd.js",
   "dependencies": {
     "lodash-es": "^4.17.21",
