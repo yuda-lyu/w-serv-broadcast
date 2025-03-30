@@ -101,14 +101,14 @@ wo.on('error', function(err) {
 ### In a browser(UMD module):
 [Necessary] Add script for w-serv-broadcast-client.
 ```alias
-<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.0.5/dist/w-serv-broadcast-client.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.0.6/dist/w-serv-broadcast-client.umd.js"></script>
 ```
 
 #### Example for w-serv-broadcast-client:
 > **Link:** [[dev source code](https://github.com/yuda-lyu/w-serv-broadcast/blob/master/weba.html)]
 ```alias
 <script src="https://cdn.jsdelivr.net/npm/w-converhp/dist/w-converhp-client.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.0.5/dist/w-serv-broadcast-client.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.0.6/dist/w-serv-broadcast-client.umd.js"></script>
 
 //wcc
 let WConverhpClient = window['w-converhp-client']
