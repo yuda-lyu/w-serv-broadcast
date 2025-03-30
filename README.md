@@ -41,7 +41,7 @@ let opt = {
 let instWConverServer = new WConverhpServer(opt)
 
 //wo
-let wo = WServBroadcastServer(instWConverServer)
+let wo = new WServBroadcastServer(instWConverServer)
 
 let n = 0
 setInterval(() => {
@@ -87,7 +87,7 @@ let opt = {
 let instWConverClient = new WConverhpClient(opt)
 
 //wo
-let wo = WServBroadcastClient(instWConverClient)
+let wo = new WServBroadcastClient(instWConverClient)
 
 wo.on('broadcast', function(data) {
     console.log(`broadcast`, data)
@@ -101,14 +101,14 @@ wo.on('error', function(err) {
 ### In a browser(UMD module):
 [Necessary] Add script for w-serv-broadcast-client.
 ```alias
-<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.0.4/dist/w-serv-broadcast-client.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.0.5/dist/w-serv-broadcast-client.umd.js"></script>
 ```
 
 #### Example for w-serv-broadcast-client:
 > **Link:** [[dev source code](https://github.com/yuda-lyu/w-serv-broadcast/blob/master/weba.html)]
 ```alias
 <script src="https://cdn.jsdelivr.net/npm/w-converhp/dist/w-converhp-client.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.0.4/dist/w-serv-broadcast-client.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.0.5/dist/w-serv-broadcast-client.umd.js"></script>
 
 //wcc
 let WConverhpClient = window['w-converhp-client']
@@ -130,7 +130,7 @@ let opt = {
 let instWConverClient = new WConverhpClient(opt)
 
 //wo
-let wo = WServBroadcastClient(instWConverClient)
+let wo = new WServBroadcastClient(instWConverClient)
 
 wo.on('broadcast', function(data) {
     console.log(`broadcast`, data)

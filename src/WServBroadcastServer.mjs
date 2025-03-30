@@ -33,7 +33,7 @@ import evem from 'wsemi/src/evem.mjs'
  * let instWConverServer = new WConverhpServer(opt)
  *
  * //wo
- * let wo = WServBroadcastServer(instWConverServer)
+ * let wo = new WServBroadcastServer(instWConverServer)
  *
  * let n = 0
  * setInterval(() => {

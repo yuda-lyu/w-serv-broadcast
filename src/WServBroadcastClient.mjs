@@ -34,7 +34,7 @@ import evem from 'wsemi/src/evem.mjs'
  * let instWConverClient = new WConverhpClient(opt)
  *
  * //wo
- * let wo = WServBroadcastClient(instWConverClient)
+ * let wo = new WServBroadcastClient(instWConverClient)
  *
  * wo.on('broadcast', function(data) {
  *     console.log(`broadcast`, data)
@@ -82,7 +82,7 @@ function WServBroadcastClient(instWConverClient, opt = {}) {
 
         //execute
         instWConverClient.execute('[sys:polling]', { clientId },
-            function (prog, p, m) {
+            function ({ prog, p, m }) {
                 // console.log('client web: execute: prog', prog, p, m)
             })
             .then(function(res) {

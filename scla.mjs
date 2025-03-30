@@ -13,7 +13,7 @@ let opt = {
 let instWConverClient = new WConverhpClient(opt)
 
 //wo
-let wo = WServBroadcastClient(instWConverClient)
+let wo = new WServBroadcastClient(instWConverClient)
 
 wo.on('broadcast', function(data) {
     console.log(`broadcast`, data)
