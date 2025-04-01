@@ -20,7 +20,7 @@ describe('broadcast', function() {
             port: 8080,
             apiName: 'api',
             pathStaticFiles: '.', //要存取專案資料夾下web.html, 故不能給dist
-            funCheck: () => {
+            verifyConn: () => {
                 return true
             },
         }
