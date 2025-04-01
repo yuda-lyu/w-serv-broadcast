@@ -38,4 +38,21 @@ setTimeout(() => {
     console.log('ms', ms)
 }, 13000)
 
+// openOnce
+// open
+// broadcast n=1
+// broadcast n=2
+// broadcast n=3
+// broadcast n=4
+// broadcast n=5
+// ms [
+//   { event: 'openOnce' },
+//   { event: 'open' },
+//   { receive: 'n=1' },
+//   { receive: 'n=2' },
+//   { receive: 'n=3' },
+//   { receive: 'n=4' },
+//   { receive: 'n=5' }
+// ]
+
 //node --experimental-modules scla.mjs

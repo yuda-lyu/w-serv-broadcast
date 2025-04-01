@@ -29,7 +29,7 @@ setTimeout(() => {
         console.log('broadcast n', n)
         ms.push({ broadcast: n })
         if (n >= 5) {
-            clearInterval(t)
+            //clearInterval(t)
         }
     }, 1500)
 
@@ -38,7 +38,7 @@ setTimeout(() => {
         wo.clearBroadcast()
         instWConverServer.stop()
         console.log('ms', ms)
-    }, 10000)
+    }, 110000)
 
 }, 3000)
 
@@ -61,5 +61,21 @@ wo.on('handler', function(data) {
     // console.log(`Server[port:${opt.port}]: handler`, data)
 })
 
+// Server[port:8080]: clientEnter {random}
+// Server[port:8080]: clientChange 1
+// broadcast n 1
+// broadcast n 2
+// broadcast n 3
+// broadcast n 4
+// broadcast n 5
+// ms [
+//   { broadcast: 1 },
+//   { broadcast: 2 },
+//   { broadcast: 3 },
+//   { broadcast: 4 },
+//   { broadcast: 5 }
+// ]
+// Server[port:8080]: clientLeave {random}
+// Server[port:8080]: clientChange 0
 
 //node --experimental-modules srv.mjs

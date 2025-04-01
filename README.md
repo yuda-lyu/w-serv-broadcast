@@ -27,6 +27,10 @@ npm i w-serv-broadcast
 ```alias
 import WConverhpServer from 'w-converhp/src/WConverhpServer.mjs'
 import WServBroadcastServer from './src/WServBroadcastServer.mjs'
+import WConverhpServer from 'w-converhp/src/WConverhpServer.mjs'
+import WServBroadcastServer from './src/WServBroadcastServer.mjs'
+
+let ms = []
 
 let opt = {
     port: 8080,
@@ -43,11 +47,28 @@ let instWConverServer = new WConverhpServer(opt)
 //wo
 let wo = new WServBroadcastServer(instWConverServer)
 
-let n = 0
-setInterval(() => {
-    n++
-    wo.broadcast(`n=${n}`)
-}, 1500)
+//啟動後要等client連入才有辦法收broadcast, 故須延遲觸發
+setTimeout(() => {
+
+    let n = 0
+    let t = setInterval(() => {
+        n++
+        wo.broadcast(`n=${n}`)
+        console.log('broadcast n', n)
+        ms.push({ broadcast: n })
+        if (n >= 5) {
+            clearInterval(t)
+        }
+    }, 1500)
+
+    //broadcast給前端還需要時間處理, 故不能於滿足條件n就stop
+    setTimeout(() => {
+        wo.clearBroadcast()
+        instWConverServer.stop()
+        console.log('ms', ms)
+    }, 10000)
+
+}, 3000)
 
 wo.on('clientEnter', function(data) {
     console.log(`Server[port:${opt.port}]: clientEnter`, data)
@@ -68,6 +89,22 @@ wo.on('handler', function(data) {
     // console.log(`Server[port:${opt.port}]: handler`, data)
 })
 
+// Server[port:8080]: clientEnter {random}
+// Server[port:8080]: clientChange 1
+// broadcast n 1
+// broadcast n 2
+// broadcast n 3
+// broadcast n 4
+// broadcast n 5
+// ms [
+//   { broadcast: 1 },
+//   { broadcast: 2 },
+//   { broadcast: 3 },
+//   { broadcast: 4 },
+//   { broadcast: 5 }
+// ]
+// Server[port:8080]: clientLeave {random}
+// Server[port:8080]: clientChange 0
 ```
 
 #### Example for w-serv-broadcast-client:
@@ -76,6 +113,8 @@ wo.on('handler', function(data) {
 import FormData from 'form-data'
 import WConverhpClient from 'w-converhp/src/WConverhpClient.mjs'
 import WServBroadcastClient from './src/WServBroadcastClient.mjs'
+
+let ms = []
 
 let opt = {
     FormData,
@@ -91,10 +130,41 @@ let wo = new WServBroadcastClient(instWConverClient)
 
 wo.on('broadcast', function(data) {
     console.log(`broadcast`, data)
+    ms.push({ receive: data })
+})
+wo.on('openOnce', function() {
+    console.log(`openOnce`)
+    ms.push({ event: 'openOnce' })
+})
+wo.on('open', function() {
+    console.log(`open`)
+    ms.push({ event: 'open' })
 })
 wo.on('error', function(err) {
     console.log(`error`, err)
 })
+
+setTimeout(() => {
+    wo.clearBroadcast()
+    console.log('ms', ms)
+}, 13000)
+
+// openOnce
+// open
+// broadcast n=1
+// broadcast n=2
+// broadcast n=3
+// broadcast n=4
+// broadcast n=5
+// ms [
+//   { event: 'openOnce' },
+//   { event: 'open' },
+//   { receive: 'n=1' },
+//   { receive: 'n=2' },
+//   { receive: 'n=3' },
+//   { receive: 'n=4' },
+//   { receive: 'n=5' }
+// ]
 
 ```
 
@@ -138,5 +208,11 @@ wo.on('broadcast', function(data) {
 wo.on('error', function(err) {
     console.log(`error`, err)
 })
-
+// openOnce
+// open
+// broadcast,n=1
+// broadcast,n=2
+// broadcast,n=3
+// broadcast,n=4
+// broadcast,n=5
 ```
