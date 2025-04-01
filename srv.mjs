@@ -29,7 +29,7 @@ setTimeout(() => {
         console.log('broadcast n', n)
         ms.push({ broadcast: n })
         if (n >= 5) {
-            //clearInterval(t)
+            clearInterval(t)
         }
     }, 1500)
 
@@ -38,7 +38,7 @@ setTimeout(() => {
         wo.clearBroadcast()
         instWConverServer.stop()
         console.log('ms', ms)
-    }, 110000)
+    }, 10000)
 
 }, 3000)
 
