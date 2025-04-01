@@ -44,19 +44,19 @@
             //instWConverClient
             let instWConverClient = new WConverhpClient(opt)
 
-            //wo
-            let wo = new WServBroadcastClient(instWConverClient)
+            //instWConverServer
+            instWConverServer = new WServBroadcastClient(instWConverClient)
 
-            wo.on('broadcast', function(data) {
+            instWConverServer.on('broadcast', function(data) {
                 console.log(`broadcast`, data)
             })
-            wo.on('openOnce', function() {
+            instWConverServer.on('openOnce', function() {
                 console.log(`openOnce`)
             })
-            wo.on('open', function() {
+            instWConverServer.on('open', function() {
                 console.log(`open`)
             })
-            wo.on('error', function(err) {
+            instWConverServer.on('error', function(err) {
                 console.log(`error`, err)
             })
             // openOnce

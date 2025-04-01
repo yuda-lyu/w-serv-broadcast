@@ -44,8 +44,8 @@ let opt = {
 //instWConverServer
 let instWConverServer = new WConverhpServer(opt)
 
-//wo
-let wo = new WServBroadcastServer(instWConverServer)
+//instWConverServer
+instWConverServer = new WServBroadcastServer(instWConverServer)
 
 //啟動後要等client連入才有辦法收broadcast, 故須延遲觸發
 setTimeout(() => {
@@ -53,7 +53,7 @@ setTimeout(() => {
     let n = 0
     let t = setInterval(() => {
         n++
-        wo.broadcast(`n=${n}`)
+        instWConverServer.broadcast(`n=${n}`)
         console.log('broadcast n', n)
         ms.push({ broadcast: n })
         if (n >= 5) {
@@ -63,29 +63,29 @@ setTimeout(() => {
 
     //broadcast給前端還需要時間處理, 故不能於滿足條件n就stop
     setTimeout(() => {
-        wo.clearBroadcast()
+        instWConverServer.clearBroadcast()
         instWConverServer.stop()
         console.log('ms', ms)
     }, 10000)
 
 }, 3000)
 
-wo.on('clientEnter', function(data) {
+instWConverServer.on('clientEnter', function(data) {
     console.log(`Server[port:${opt.port}]: clientEnter`, data)
 })
-wo.on('clientLeave', function(data) {
+instWConverServer.on('clientLeave', function(data) {
     console.log(`Server[port:${opt.port}]: clientLeave`, data)
 })
-wo.on('clientChange', function(data) {
+instWConverServer.on('clientChange', function(data) {
     console.log(`Server[port:${opt.port}]: clientChange`, data)
 })
-wo.on('broadcast', function(data) {
+instWConverServer.on('broadcast', function(data) {
     console.log(`Server[port:${opt.port}]: broadcast`, data)
 })
-wo.on('error', function(err) {
+instWConverServer.on('error', function(err) {
     console.log(`Server[port:${opt.port}]: error`, err)
 })
-wo.on('handler', function(data) {
+instWConverServer.on('handler', function(data) {
     // console.log(`Server[port:${opt.port}]: handler`, data)
 })
 
@@ -107,8 +107,8 @@ wo.on('handler', function(data) {
 // Server[port:8080]: clientChange 0
 ```
 
-#### Example for w-serv-broadcast-client:
-> **Link:** [[dev source code](https://github.com/yuda-lyu/w-serv-broadcast/blob/master/scla.mjs)]
+#### Example for w-serv-broadcast-client in node.js:
+> **Link:** [[dev source code](https://github.com/yuda-lyu/w-serv-broadcast/blob/master/scl.mjs)]
 ```alias
 import FormData from 'form-data'
 import WConverhpClient from 'w-converhp/src/WConverhpClient.mjs'
@@ -125,27 +125,27 @@ let opt = {
 //instWConverClient
 let instWConverClient = new WConverhpClient(opt)
 
-//wo
-let wo = new WServBroadcastClient(instWConverClient)
+//instWConverClient
+instWConverClient = new WServBroadcastClient(instWConverClient)
 
-wo.on('broadcast', function(data) {
+instWConverClient.on('broadcast', function(data) {
     console.log(`broadcast`, data)
     ms.push({ receive: data })
 })
-wo.on('openOnce', function() {
+instWConverClient.on('openOnce', function() {
     console.log(`openOnce`)
     ms.push({ event: 'openOnce' })
 })
-wo.on('open', function() {
+instWConverClient.on('open', function() {
     console.log(`open`)
     ms.push({ event: 'open' })
 })
-wo.on('error', function(err) {
+instWConverClient.on('error', function(err) {
     console.log(`error`, err)
 })
 
 setTimeout(() => {
-    wo.clearBroadcast()
+    instWConverClient.clearBroadcast()
     console.log('ms', ms)
 }, 13000)
 
@@ -165,7 +165,6 @@ setTimeout(() => {
 //   { receive: 'n=4' },
 //   { receive: 'n=5' }
 // ]
-
 ```
 
 ### In a browser(UMD module):
@@ -174,8 +173,8 @@ setTimeout(() => {
 <script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.0.8/dist/w-serv-broadcast-client.umd.js"></script>
 ```
 
-#### Example for w-serv-broadcast-client:
-> **Link:** [[dev source code](https://github.com/yuda-lyu/w-serv-broadcast/blob/master/weba.html)]
+#### Example for w-serv-broadcast-client in web:
+> **Link:** [[dev source code](https://github.com/yuda-lyu/w-serv-broadcast/blob/master/web.html)]
 ```alias
 <script src="https://cdn.jsdelivr.net/npm/w-converhp/dist/w-converhp-client.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.0.8/dist/w-serv-broadcast-client.umd.js"></script>
@@ -199,13 +198,13 @@ let opt = {
 //instWConverClient
 let instWConverClient = new WConverhpClient(opt)
 
-//wo
-let wo = new WServBroadcastClient(instWConverClient)
+//instWConverServer
+instWConverServer = new WServBroadcastClient(instWConverClient)
 
-wo.on('broadcast', function(data) {
+instWConverServer.on('broadcast', function(data) {
     console.log(`broadcast`, data)
 })
-wo.on('error', function(err) {
+instWConverServer.on('error', function(err) {
     console.log(`error`, err)
 })
 // openOnce

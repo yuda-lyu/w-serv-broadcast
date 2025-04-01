@@ -14,27 +14,27 @@ let opt = {
 //instWConverClient
 let instWConverClient = new WConverhpClient(opt)
 
-//wo
-let wo = new WServBroadcastClient(instWConverClient)
+//instWConverClient
+instWConverClient = new WServBroadcastClient(instWConverClient)
 
-wo.on('broadcast', function(data) {
+instWConverClient.on('broadcast', function(data) {
     console.log(`broadcast`, data)
     ms.push({ receive: data })
 })
-wo.on('openOnce', function() {
+instWConverClient.on('openOnce', function() {
     console.log(`openOnce`)
     ms.push({ event: 'openOnce' })
 })
-wo.on('open', function() {
+instWConverClient.on('open', function() {
     console.log(`open`)
     ms.push({ event: 'open' })
 })
-wo.on('error', function(err) {
+instWConverClient.on('error', function(err) {
     console.log(`error`, err)
 })
 
 setTimeout(() => {
-    wo.clearBroadcast()
+    instWConverClient.clearBroadcast()
     console.log('ms', ms)
 }, 13000)
 
@@ -55,4 +55,4 @@ setTimeout(() => {
 //   { receive: 'n=5' }
 // ]
 
-//node --experimental-modules scla.mjs
+//node --experimental-modules scl.mjs

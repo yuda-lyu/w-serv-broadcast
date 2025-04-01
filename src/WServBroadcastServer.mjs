@@ -32,31 +32,31 @@ import evem from 'wsemi/src/evem.mjs'
  * //instWConverServer
  * let instWConverServer = new WConverhpServer(opt)
  *
- * //wo
- * let wo = new WServBroadcastServer(instWConverServer)
+ * //instWConverServer
+ * instWConverServer = new WServBroadcastServer(instWConverServer)
  *
  * let n = 0
  * setInterval(() => {
  *     n++
- *     wo.broadcast(`n=${n}`)
+ *     instWConverServer.broadcast(`n=${n}`)
  * }, 1500)
  *
- * wo.on('clientEnter', function(data) {
+ * instWConverServer.on('clientEnter', function(data) {
  *     console.log(`Server[port:${opt.port}]: clientEnter`, data)
  * })
- * wo.on('clientLeave', function(data) {
+ * instWConverServer.on('clientLeave', function(data) {
  *     console.log(`Server[port:${opt.port}]: clientLeave`, data)
  * })
- * wo.on('clientChange', function(data) {
+ * instWConverServer.on('clientChange', function(data) {
  *     console.log(`Server[port:${opt.port}]: clientChange`, data)
  * })
- * wo.on('broadcast', function(data) {
+ * instWConverServer.on('broadcast', function(data) {
  *     console.log(`Server[port:${opt.port}]: broadcast`, data)
  * })
- * wo.on('error', function(err) {
+ * instWConverServer.on('error', function(err) {
  *     console.log(`Server[port:${opt.port}]: error`, err)
  * })
- * wo.on('handler', function(data) {
+ * instWConverServer.on('handler', function(data) {
  *     // console.log(`Server[port:${opt.port}]: handler`, data)
  * })
  *

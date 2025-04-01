@@ -33,13 +33,13 @@ import evem from 'wsemi/src/evem.mjs'
  * //instWConverClient
  * let instWConverClient = new WConverhpClient(opt)
  *
- * //wo
- * let wo = new WServBroadcastClient(instWConverClient)
+ * //instWConverServer
+ * instWConverServer = new WServBroadcastClient(instWConverClient)
  *
- * wo.on('broadcast', function(data) {
+ * instWConverServer.on('broadcast', function(data) {
  *     console.log(`broadcast`, data)
  * })
- * wo.on('error', function(err) {
+ * instWConverServer.on('error', function(err) {
  *     console.log(`error`, err)
  * })
  *

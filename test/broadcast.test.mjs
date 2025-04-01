@@ -25,11 +25,11 @@ describe('broadcast', function() {
             },
         }
 
-        //instWConverServer
+        //instWConverClient
         let instWConverServer = new WConverhpServer(opt)
 
-        //wo
-        let wo = new WServBroadcastServer(instWConverServer)
+        //instWConverServer
+        instWConverServer = new WServBroadcastServer(instWConverServer)
 
         //啟動後要等client連入才有辦法收broadcast, 故須延遲觸發
         setTimeout(() => {
@@ -37,7 +37,7 @@ describe('broadcast', function() {
             let n = 0
             let t = setInterval(() => {
                 n++
-                wo.broadcast(`n=${n}`)
+                instWConverServer.broadcast(`n=${n}`)
                 // console.log('broadcast n', n)
                 ms.push({ broadcast: n })
                 if (n >= 5) {
@@ -47,7 +47,7 @@ describe('broadcast', function() {
 
             //broadcast給前端還需要時間處理, 故不能於滿足條件n就stop
             setTimeout(() => {
-                wo.clearBroadcast()
+                instWConverServer.clearBroadcast()
                 instWConverServer.stop()
                 // console.log('ms', ms)
                 msAll.push({ server: ms })
@@ -55,22 +55,22 @@ describe('broadcast', function() {
 
         }, 3000)
 
-        wo.on('clientEnter', function(data) {
+        instWConverServer.on('clientEnter', function(data) {
             // console.log(`Server[port:${opt.port}]: clientEnter`, data)
         })
-        wo.on('clientLeave', function(data) {
+        instWConverServer.on('clientLeave', function(data) {
             // console.log(`Server[port:${opt.port}]: clientLeave`, data)
         })
-        wo.on('clientChange', function(data) {
+        instWConverServer.on('clientChange', function(data) {
             // console.log(`Server[port:${opt.port}]: clientChange`, data)
         })
-        wo.on('broadcast', function(data) {
+        instWConverServer.on('broadcast', function(data) {
             // console.log(`Server[port:${opt.port}]: broadcast`, data)
         })
-        wo.on('error', function() {
+        instWConverServer.on('error', function() {
             // console.log(`Server[port:${opt.port}]: error`, err)
         })
-        wo.on('handler', function(data) {
+        instWConverServer.on('handler', function(data) {
             // console.log(`Server[port:${opt.port}]: handler`, data)
         })
 
@@ -89,27 +89,27 @@ describe('broadcast', function() {
         //instWConverClient
         let instWConverClient = new WConverhpClient(opt)
 
-        //wo
-        let wo = new WServBroadcastClient(instWConverClient)
+        //instWConverClient
+        instWConverClient = new WServBroadcastClient(instWConverClient)
 
-        wo.on('broadcast', function(data) {
+        instWConverClient.on('broadcast', function(data) {
             // console.log(`broadcast`, data)
             ms.push({ receive: data })
         })
-        wo.on('openOnce', function() {
+        instWConverClient.on('openOnce', function() {
             // console.log(`openOnce`)
             ms.push({ event: 'openOnce' })
         })
-        wo.on('open', function() {
+        instWConverClient.on('open', function() {
             // console.log(`open`)
             ms.push({ event: 'open' })
         })
-        wo.on('error', function() {
+        instWConverClient.on('error', function() {
             // console.log(`error`, err)
         })
 
         setTimeout(() => {
-            wo.clearBroadcast()
+            instWConverClient.clearBroadcast()
             // console.log('ms', ms)
             msAll.push({ client: ms })
         }, 13000)
