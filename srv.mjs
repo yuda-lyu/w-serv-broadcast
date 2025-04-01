@@ -2,6 +2,8 @@ import WConverhpServer from 'w-converhp/src/WConverhpServer.mjs'
 import WServBroadcastServer from './src/WServBroadcastServer.mjs'
 
 
+let ms = []
+
 let opt = {
     port: 8080,
     apiName: 'api',
@@ -17,11 +19,28 @@ let instWConverServer = new WConverhpServer(opt)
 //wo
 let wo = new WServBroadcastServer(instWConverServer)
 
-let n = 0
-setInterval(() => {
-    n++
-    wo.broadcast(`n=${n}`)
-}, 1500)
+//啟動後要等client連入才有辦法收broadcast, 故須延遲觸發
+setTimeout(() => {
+
+    let n = 0
+    let t = setInterval(() => {
+        n++
+        wo.broadcast(`n=${n}`)
+        console.log('broadcast n', n)
+        ms.push({ broadcast: n })
+        if (n >= 5) {
+            clearInterval(t)
+        }
+    }, 1500)
+
+    //broadcast給前端還需要時間處理, 故不能於滿足條件n就stop
+    setTimeout(() => {
+        wo.clearBroadcast()
+        instWConverServer.stop()
+        console.log('ms', ms)
+    }, 10000)
+
+}, 3000)
 
 wo.on('clientEnter', function(data) {
     console.log(`Server[port:${opt.port}]: clientEnter`, data)

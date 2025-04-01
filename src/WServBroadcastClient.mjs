@@ -78,7 +78,7 @@ function WServBroadcastClient(instWConverClient, opt = {}) {
     //setInterval
     let connFirst = false
     let connIng = false
-    setInterval(() => {
+    let t = setInterval(() => {
 
         //execute
         instWConverClient.execute('[sys:polling]', { clientId },
@@ -119,6 +119,14 @@ function WServBroadcastClient(instWConverClient, opt = {}) {
             })
 
     }, timePolling)
+
+    //clearBroadcast
+    let clearBroadcast = () => {
+        clearInterval(t)
+    }
+
+    //save
+    instWConverClient.clearBroadcast = clearBroadcast
 
     return instWConverClient
 }

@@ -84,7 +84,7 @@ function WServBroadcastServer(instWConverServer, opt = {}) {
     let ea = alive()
 
     //ea broadcastMessages
-    setInterval(() => {
+    let t = setInterval(() => {
 
         //now alive
         let nowAlive = ea.get()
@@ -174,12 +174,21 @@ function WServBroadcastServer(instWConverServer, opt = {}) {
 
     }
 
-    //save
-    instWConverServer.getClients = ea.get
-    instWConverServer.getMessages = () => {
+    //getMessages
+    let getMessages = () => {
         return cloneDeep(broadcastMessages) //使用cloneDeep避免外部修改內部數據
     }
+
+    //clearBroadcast
+    let clearBroadcast = () => {
+        clearInterval(t)
+    }
+
+    //save
+    instWConverServer.getClients = ea.get
+    instWConverServer.getMessages = getMessages
     instWConverServer.broadcast = broadcast
+    instWConverServer.clearBroadcast = clearBroadcast
 
     return instWConverServer
 }
