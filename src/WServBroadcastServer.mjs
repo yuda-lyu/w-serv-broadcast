@@ -3,7 +3,6 @@ import each from 'lodash-es/each.js'
 import map from 'lodash-es/map.js'
 import cloneDeep from 'lodash-es/cloneDeep.js'
 import iseobj from 'wsemi/src/iseobj.mjs'
-import haskey from 'wsemi/src/haskey.mjs'
 import alive from 'wsemi/src/alive.mjs'
 import evem from 'wsemi/src/evem.mjs'
 
@@ -69,7 +68,7 @@ function WServBroadcastServer(instWConverServer, opt = {}) {
         console.log('instWConverServer is not an effective object, and set instWConverServer to an EventEmitter')
         instWConverServer = evem()
     }
-    if (!haskey(instWConverServer, 'emit')) {
+    if (!instWConverServer.emit) {
         throw new Error(`instWConverServer is not an EventEmitter`)
     }
 

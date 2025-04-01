@@ -1,7 +1,6 @@
 import get from 'lodash-es/get.js'
 import each from 'lodash-es/each.js'
 import iseobj from 'wsemi/src/iseobj.mjs'
-import haskey from 'wsemi/src/haskey.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
 import isp0int from 'wsemi/src/isp0int.mjs'
 import isearr from 'wsemi/src/isearr.mjs'
@@ -51,7 +50,7 @@ function WServBroadcastClient(instWConverClient, opt = {}) {
         console.log('instWConverClient is not an effective object, and set instWConverClient to an EventEmitter')
         instWConverClient = evem()
     }
-    if (!haskey(instWConverClient, 'emit')) {
+    if (!instWConverClient.emit) {
         throw new Error(`instWConverClient is not an EventEmitter`)
     }
 
