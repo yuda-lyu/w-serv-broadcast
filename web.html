@@ -25,18 +25,14 @@
         
         <script>
 
-            //wcc
+            //WConverhpClient
             let WConverhpClient = window['w-converhp-client']
-            let wcc = new WConverhpClient({
-                // FormData,
-                url: 'http://localhost:9000',
-            })
-
-            //wsdc
+     
+            //WServBroadcastClient
             let WServBroadcastClient = window['w-serv-broadcast-client']
                
             let opt = {
-                FormData,
+                // FormData,
                 url: 'http://localhost:8080',
                 apiName: 'api',
             }
@@ -44,19 +40,19 @@
             //instWConverClient
             let instWConverClient = new WConverhpClient(opt)
 
-            //instWConverServer
-            instWConverServer = new WServBroadcastClient(instWConverClient)
+            //instWConverClient
+            instWConverClient = new WServBroadcastClient(instWConverClient)
 
-            instWConverServer.on('broadcast', function(data) {
+            instWConverClient.on('broadcast', function(data) {
                 console.log(`broadcast`, data)
             })
-            instWConverServer.on('openOnce', function() {
+            instWConverClient.on('openOnce', function() {
                 console.log(`openOnce`)
             })
-            instWConverServer.on('open', function() {
+            instWConverClient.on('open', function() {
                 console.log(`open`)
             })
-            instWConverServer.on('error', function(err) {
+            instWConverClient.on('error', function(err) {
                 console.log(`error`, err)
             })
             // openOnce
