@@ -198,13 +198,19 @@ let opt = {
 //instWConverClient
 let instWConverClient = new WConverhpClient(opt)
 
-//instWConverServer
-instWConverServer = new WServBroadcastClient(instWConverClient)
+//instWConverClient
+instWConverClient = new WServBroadcastClient(instWConverClient)
 
-instWConverServer.on('broadcast', function(data) {
+instWConverClient.on('broadcast', function(data) {
     console.log(`broadcast`, data)
 })
-instWConverServer.on('error', function(err) {
+instWConverClient.on('openOnce', function() {
+    console.log(`openOnce`)
+})
+instWConverClient.on('open', function() {
+    console.log(`open`)
+})
+instWConverClient.on('error', function(err) {
     console.log(`error`, err)
 })
 // openOnce
