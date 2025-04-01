@@ -37,10 +37,8 @@
                 apiName: 'api',
             }
 
-            //instWConverClient
             let instWConverClient = new WConverhpClient(opt)
 
-            //instWConverClient
             instWConverClient = new WServBroadcastClient(instWConverClient)
 
             instWConverClient.on('broadcast', function(data) {
