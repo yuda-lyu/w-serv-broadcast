@@ -55,4 +55,4 @@ setTimeout(() => {
 //   { receive: 'n=5' }
 // ]
 
-//node --experimental-modules scl.mjs
+//node scl.mjs

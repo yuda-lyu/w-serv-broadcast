@@ -78,4 +78,4 @@ instWConverServer.on('handler', function(data) {
 // Server[port:8080]: clientLeave {random}
 // Server[port:8080]: clientChange 0
 
-//node --experimental-modules srv.mjs
+//node srv.mjs

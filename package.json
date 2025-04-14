@@ -8,11 +8,11 @@
   },
   "devDependencies": {
     "form-data": "^4.0.2",
-    "w-converhp": "^2.0.32",
+    "w-converhp": "^2.0.34",
     "w-package-tools": "^1.0.87"
   },
   "scripts": {
-    "test": "mocha --parallel --timeout 60000 --experimental-modules",
+    "test": "mocha --parallel --timeout 60000",
     "deploy": "gh-pages -d docs"
   },
   "repository": {
