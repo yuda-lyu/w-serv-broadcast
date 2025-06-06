@@ -78,7 +78,14 @@ function WServBroadcastClient(instWConverClient, opt = {}) {
     //setInterval
     let connFirst = false
     let connIng = false
+    let execIng = false
     let t = setInterval(() => {
+
+        //check
+        if (execIng) {
+            return
+        }
+        execIng = true
 
         //execute
         instWConverClient.execute('[sys:polling]', { clientId },
@@ -116,6 +123,9 @@ function WServBroadcastClient(instWConverClient, opt = {}) {
                 // console.log('polling err', err)
                 connIng = false
                 eeEmit('error', err)
+            })
+            .finally(() => {
+                execIng = false
             })
 
     }, timePolling)

@@ -1,5 +1,5 @@
-import assert from 'assert'
 // import fs from 'fs'
+import assert from 'assert'
 // import _ from 'lodash-es'
 import w from 'wsemi'
 import WConverhpServer from 'w-converhp/src/WConverhpServer.mjs'
@@ -43,7 +43,7 @@ describe('broadcast', function() {
                 if (n >= 5) {
                     clearInterval(t)
                 }
-            }, 1500)
+            }, 1500) //預計5*1500=7500結束, 加上延遲啟動為10500
 
             //broadcast給前端還需要時間處理, 故不能於滿足條件n就stop
             setTimeout(() => {
@@ -51,7 +51,7 @@ describe('broadcast', function() {
                 instWConverServer.stop()
                 // console.log('ms', ms)
                 msAll.push({ server: ms })
-            }, 10000)
+            }, 14500) //broadcast結束為10500, server預計14500結束, 估計於12500時讓client中止, server加上延遲啟動結束為17500
 
         }, 3000)
 
@@ -112,7 +112,7 @@ describe('broadcast', function() {
             instWConverClient.clearBroadcast()
             // console.log('ms', ms)
             msAll.push({ client: ms })
-        }, 13000)
+        }, 12500) //client須先結束, 照規劃於12500時client中止
 
     }
 
@@ -124,7 +124,7 @@ describe('broadcast', function() {
             // console.log('msAll', JSON.stringify(msAll))
             // fs.writeFileSync('./test_broadcast.json', JSON.stringify(msAll), 'utf8')
             pm.resolve(msAll)
-        }, 15000)
+        }, 20000) //server結束為17500, 整體結束再加上等待延遲故給20000
         return pm
     }
 
