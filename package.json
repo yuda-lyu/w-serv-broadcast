@@ -1,14 +1,14 @@
 {
   "name": "w-serv-broadcast",
-  "version": "1.0.64",
+  "version": "1.0.65",
   "main": "dist/w-serv-broadcast-server.umd.js",
   "dependencies": {
     "lodash-es": "^4.17.21",
-    "wsemi": "^1.7.92"
+    "wsemi": "^1.8.6"
   },
   "devDependencies": {
     "form-data": "^4.0.3",
-    "w-converhp": "^2.0.55",
+    "w-converhp": "^2.0.56",
     "w-package-tools": "^1.1.2"
   },
   "scripts": {
