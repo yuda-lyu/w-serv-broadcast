@@ -1,10 +1,10 @@
 {
   "name": "w-serv-broadcast",
-  "version": "1.0.67",
+  "version": "1.0.68",
   "main": "dist/w-serv-broadcast-server.umd.js",
   "dependencies": {
     "lodash-es": "^4.17.21",
-    "wsemi": "^1.8.14"
+    "wsemi": "^1.8.16"
   },
   "devDependencies": {
     "form-data": "^4.0.3",
