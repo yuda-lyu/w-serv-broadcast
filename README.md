@@ -17,6 +17,7 @@ To view documentation or get support, visit [docs](https://yuda-lyu.github.io/w-
 * `w-serv-broadcast-client`: for nodejs and browser client
 
 ## Installation
+
 ### Using npm(ES6 module):
 ```alias
 npm i w-serv-broadcast
@@ -168,7 +169,8 @@ setTimeout(() => {
 ```
 
 ### In a browser(UMD module):
-[Necessary] Add script for w-serv-broadcast-client.
+
+Add script for w-serv-broadcast-client.
 ```alias
 <script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.0.80/dist/w-serv-broadcast-client.umd.js"></script>
 ```
