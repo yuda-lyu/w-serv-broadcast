@@ -1,15 +1,15 @@
 {
   "name": "w-serv-broadcast",
-  "version": "1.0.84",
+  "version": "1.0.85",
   "main": "dist/w-serv-broadcast-server.umd.js",
   "dependencies": {
     "lodash-es": "^4.18.1",
-    "wsemi": "^1.8.66"
+    "wsemi": "^1.8.67"
   },
   "devDependencies": {
     "form-data": "^4.0.3",
-    "w-converhp": "^2.0.75",
-    "w-package-tools": "^1.1.11"
+    "w-converhp": "^2.0.76",
+    "w-package-tools": "^1.1.12"
   },
   "scripts": {
     "test": "mocha --parallel --timeout 60000",
