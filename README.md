@@ -28,8 +28,6 @@ npm i w-serv-broadcast
 ```alias
 import WConverhpServer from 'w-converhp/src/WConverhpServer.mjs'
 import WServBroadcastServer from './src/WServBroadcastServer.mjs'
-import WConverhpServer from 'w-converhp/src/WConverhpServer.mjs'
-import WServBroadcastServer from './src/WServBroadcastServer.mjs'
 
 let ms = []
 
@@ -71,17 +69,14 @@ setTimeout(() => {
 
 }, 3000)
 
-instWConverServer.on('clientEnter', function(data) {
-    console.log(`Server[port:${opt.port}]: clientEnter`, data)
+instWConverServer.on('clientEnter', function(clientId, data) {
+    console.log(`Server[port:${opt.port}]: clientEnter`, clientId, data)
 })
-instWConverServer.on('clientLeave', function(data) {
-    console.log(`Server[port:${opt.port}]: clientLeave`, data)
+instWConverServer.on('clientLeave', function(clientId, data) {
+    console.log(`Server[port:${opt.port}]: clientLeave`, clientId, data)
 })
-instWConverServer.on('clientChange', function(data) {
-    console.log(`Server[port:${opt.port}]: clientChange`, data)
-})
-instWConverServer.on('broadcast', function(data) {
-    console.log(`Server[port:${opt.port}]: broadcast`, data)
+instWConverServer.on('clientChange', function(numClients) {
+    console.log(`Server[port:${opt.port}]: clientChange`, numClients)
 })
 instWConverServer.on('error', function(err) {
     console.log(`Server[port:${opt.port}]: error`, err)
@@ -90,7 +85,7 @@ instWConverServer.on('handler', function(data) {
     // console.log(`Server[port:${opt.port}]: handler`, data)
 })
 
-// Server[port:8080]: clientEnter {random}
+// Server[port:8080]: clientEnter {random} { clientId: {random} }
 // Server[port:8080]: clientChange 1
 // broadcast n 1
 // broadcast n 2
@@ -104,21 +99,19 @@ instWConverServer.on('handler', function(data) {
 //   { broadcast: 4 },
 //   { broadcast: 5 }
 // ]
-// Server[port:8080]: clientLeave {random}
+// Server[port:8080]: clientLeave {random} { clientId: {random} }
 // Server[port:8080]: clientChange 0
 ```
 
 #### Example for w-serv-broadcast-client in node.js:
 > **Link:** [[dev source code](https://github.com/yuda-lyu/w-serv-broadcast/blob/master/scl.mjs)]
 ```alias
-import FormData from 'form-data'
 import WConverhpClient from 'w-converhp/src/WConverhpClient.mjs'
 import WServBroadcastClient from './src/WServBroadcastClient.mjs'
 
 let ms = []
 
 let opt = {
-    FormData,
     url: 'http://localhost:8080',
     apiName: 'api',
 }
@@ -172,27 +165,22 @@ setTimeout(() => {
 
 Add script for w-serv-broadcast-client.
 ```alias
-<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.0.97/dist/w-serv-broadcast-client.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.0.98/dist/w-serv-broadcast-client.umd.js"></script>
 ```
 
 #### Example for w-serv-broadcast-client in web:
 > **Link:** [[dev source code](https://github.com/yuda-lyu/w-serv-broadcast/blob/master/web.html)]
 ```alias
 <script src="https://cdn.jsdelivr.net/npm/w-converhp/dist/w-converhp-client.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.0.97/dist/w-serv-broadcast-client.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.0.98/dist/w-serv-broadcast-client.umd.js"></script>
 
-//wcc
+//WConverhpClient
 let WConverhpClient = window['w-converhp-client']
-let wcc = new WConverhpClient({
-    // FormData,
-    url: 'http://localhost:9000',
-})
 
-//wsdc
+//WServBroadcastClient
 let WServBroadcastClient = window['w-serv-broadcast-client']
     
 let opt = {
-    FormData,
     url: 'http://localhost:8080',
     apiName: 'api',
 }

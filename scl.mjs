@@ -1,4 +1,3 @@
-import FormData from 'form-data'
 import WConverhpClient from 'w-converhp/src/WConverhpClient.mjs'
 import WServBroadcastClient from './src/WServBroadcastClient.mjs'
 
@@ -6,7 +5,6 @@ import WServBroadcastClient from './src/WServBroadcastClient.mjs'
 let ms = []
 
 let opt = {
-    FormData,
     url: 'http://localhost:8080',
     apiName: 'api',
 }

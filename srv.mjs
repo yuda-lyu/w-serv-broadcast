@@ -42,17 +42,14 @@ setTimeout(() => {
 
 }, 3000)
 
-instWConverServer.on('clientEnter', function(data) {
-    console.log(`Server[port:${opt.port}]: clientEnter`, data)
+instWConverServer.on('clientEnter', function(clientId, data) {
+    console.log(`Server[port:${opt.port}]: clientEnter`, clientId, data)
 })
-instWConverServer.on('clientLeave', function(data) {
-    console.log(`Server[port:${opt.port}]: clientLeave`, data)
+instWConverServer.on('clientLeave', function(clientId, data) {
+    console.log(`Server[port:${opt.port}]: clientLeave`, clientId, data)
 })
-instWConverServer.on('clientChange', function(data) {
-    console.log(`Server[port:${opt.port}]: clientChange`, data)
-})
-instWConverServer.on('broadcast', function(data) {
-    console.log(`Server[port:${opt.port}]: broadcast`, data)
+instWConverServer.on('clientChange', function(numClients) {
+    console.log(`Server[port:${opt.port}]: clientChange`, numClients)
 })
 instWConverServer.on('error', function(err) {
     console.log(`Server[port:${opt.port}]: error`, err)
@@ -61,7 +58,7 @@ instWConverServer.on('handler', function(data) {
     // console.log(`Server[port:${opt.port}]: handler`, data)
 })
 
-// Server[port:8080]: clientEnter {random}
+// Server[port:8080]: clientEnter {random} { clientId: {random} }
 // Server[port:8080]: clientChange 1
 // broadcast n 1
 // broadcast n 2
@@ -75,7 +72,7 @@ instWConverServer.on('handler', function(data) {
 //   { broadcast: 4 },
 //   { broadcast: 5 }
 // ]
-// Server[port:8080]: clientLeave {random}
+// Server[port:8080]: clientLeave {random} { clientId: {random} }
 // Server[port:8080]: clientChange 0
 
 //node srv.mjs

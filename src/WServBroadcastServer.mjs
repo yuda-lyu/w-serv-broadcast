@@ -14,7 +14,7 @@ import alive from 'wsemi/src/alive.mjs'
  * @class
  * @param {Object} instWConverServer 輸入通訊服務實體物件，可使用例如WConverhpServer等建立
  * @param {Object} [opt={}] 輸入設定物件，預設{}
- * @returns {Object} 回傳事件物件，可監聽error事件
+ * @returns {Object} 回傳事件物件，可監聽clientEnter、clientLeave、clientChange、error事件，並保留instWConverServer原有之execute、upload、download、handler事件；另掛載broadcast、getClients、getMessages、clearBroadcast函數。clientEnter與clientLeave帶(clientId, data)，data為該客戶端輪詢時所送之輸入物件；clientChange帶當前存活客戶端數量
  * @example
  *
  * import WConverhpServer from 'w-converhp/src/WConverhpServer.mjs'
@@ -41,17 +41,14 @@ import alive from 'wsemi/src/alive.mjs'
  *     instWConverServer.broadcast(`n=${n}`)
  * }, 1500)
  *
- * instWConverServer.on('clientEnter', function(data) {
- *     console.log(`Server[port:${opt.port}]: clientEnter`, data)
+ * instWConverServer.on('clientEnter', function(clientId, data) {
+ *     console.log(`Server[port:${opt.port}]: clientEnter`, clientId, data)
  * })
- * instWConverServer.on('clientLeave', function(data) {
- *     console.log(`Server[port:${opt.port}]: clientLeave`, data)
+ * instWConverServer.on('clientLeave', function(clientId, data) {
+ *     console.log(`Server[port:${opt.port}]: clientLeave`, clientId, data)
  * })
- * instWConverServer.on('clientChange', function(data) {
- *     console.log(`Server[port:${opt.port}]: clientChange`, data)
- * })
- * instWConverServer.on('broadcast', function(data) {
- *     console.log(`Server[port:${opt.port}]: broadcast`, data)
+ * instWConverServer.on('clientChange', function(numClients) {
+ *     console.log(`Server[port:${opt.port}]: clientChange`, numClients)
  * })
  * instWConverServer.on('error', function(err) {
  *     console.log(`Server[port:${opt.port}]: error`, err)

@@ -17,15 +17,13 @@ import cint from 'wsemi/src/cint.mjs'
  * @param {Object} instWConverClient 輸入通訊服務實體物件，可使用例如WConverhpClient等建立
  * @param {Object} [opt={}] 輸入設定物件，預設{}
  * @param {Integer} [opt.timePolling=2000] 輸入每次輪詢間隔時間整數，預設2000
- * @returns {Object} 回傳事件物件，可監聽open、openOnce、error事件
+ * @returns {Object} 回傳事件物件，可監聽openOnce、open、broadcast、error事件，另掛載clearBroadcast函數供停止輪詢
  * @example
  *
- * import FormData from 'form-data'
  * import WConverhpClient from 'w-converhp/src/WConverhpClient.mjs'
  * import WServBroadcastClient from './src/WServBroadcastClient.mjs'
  *
  * let opt = {
- *     FormData,
  *     url: 'http://localhost:8080',
  *     apiName: 'api',
  * }
@@ -33,13 +31,19 @@ import cint from 'wsemi/src/cint.mjs'
  * //instWConverClient
  * let instWConverClient = new WConverhpClient(opt)
  *
- * //instWConverServer
- * instWConverServer = new WServBroadcastClient(instWConverClient)
+ * //instWConverClient
+ * instWConverClient = new WServBroadcastClient(instWConverClient)
  *
- * instWConverServer.on('broadcast', function(data) {
+ * instWConverClient.on('broadcast', function(data) {
  *     console.log(`broadcast`, data)
  * })
- * instWConverServer.on('error', function(err) {
+ * instWConverClient.on('openOnce', function() {
+ *     console.log(`openOnce`)
+ * })
+ * instWConverClient.on('open', function() {
+ *     console.log(`open`)
+ * })
+ * instWConverClient.on('error', function(err) {
  *     console.log(`error`, err)
  * })
  *

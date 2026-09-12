@@ -55,17 +55,14 @@ describe('broadcast', function() {
 
         }, 3000)
 
-        instWConverServer.on('clientEnter', function(data) {
-            // console.log(`Server[port:${opt.port}]: clientEnter`, data)
+        instWConverServer.on('clientEnter', function(clientId, data) {
+            // console.log(`Server[port:${opt.port}]: clientEnter`, clientId, data)
         })
-        instWConverServer.on('clientLeave', function(data) {
-            // console.log(`Server[port:${opt.port}]: clientLeave`, data)
+        instWConverServer.on('clientLeave', function(clientId, data) {
+            // console.log(`Server[port:${opt.port}]: clientLeave`, clientId, data)
         })
-        instWConverServer.on('clientChange', function(data) {
-            // console.log(`Server[port:${opt.port}]: clientChange`, data)
-        })
-        instWConverServer.on('broadcast', function(data) {
-            // console.log(`Server[port:${opt.port}]: broadcast`, data)
+        instWConverServer.on('clientChange', function(numClients) {
+            // console.log(`Server[port:${opt.port}]: clientChange`, numClients)
         })
         instWConverServer.on('error', function() {
             // console.log(`Server[port:${opt.port}]: error`, err)
@@ -81,7 +78,6 @@ describe('broadcast', function() {
         let ms = []
 
         let opt = {
-            FormData,
             url: 'http://localhost:8080',
             apiName: 'api',
         }
