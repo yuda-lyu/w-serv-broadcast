@@ -165,14 +165,14 @@ setTimeout(() => {
 
 Add script for w-serv-broadcast-client.
 ```alias
-<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.1.2/dist/w-serv-broadcast-client.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.1.3/dist/w-serv-broadcast-client.umd.js"></script>
 ```
 
 #### Example for w-serv-broadcast-client in web:
 > **Link:** [[dev source code](https://github.com/yuda-lyu/w-serv-broadcast/blob/master/web.html)]
 ```alias
 <script src="https://cdn.jsdelivr.net/npm/w-converhp/dist/w-converhp-client.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.1.2/dist/w-serv-broadcast-client.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.1.3/dist/w-serv-broadcast-client.umd.js"></script>
 
 //WConverhpClient
 let WConverhpClient = window['w-converhp-client']
