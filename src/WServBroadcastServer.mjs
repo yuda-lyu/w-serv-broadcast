@@ -6,15 +6,16 @@ import evem from 'wsemi/src/evem.mjs'
 import haskey from 'wsemi/src/haskey.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
 import alive from 'wsemi/src/alive.mjs'
+import genEeEmit from './genEeEmit.mjs'
 
 
 /**
- * 伺服器端之資料控制與同步器
+ * 伺服器端之資料控制與廣播器
  *
  * @class
- * @param {Object} instWConverServer 輸入通訊服務實體物件，可使用例如WConverhpServer等建立
+ * @param {Object} instWConverServer 輸入通訊服務實體物件，須為eventemitter3事件物件(例如wsemi之evem所建立者)，可使用例如WConverhpServer等建立
  * @param {Object} [opt={}] 輸入設定物件，預設{}
- * @returns {Object} 回傳事件物件，可監聽clientEnter、clientLeave、clientChange、error事件，並保留instWConverServer原有之execute、upload、download、handler事件；另掛載broadcast、getClients、getMessages、clearBroadcast函數。clientEnter與clientLeave帶(clientId, data)，data為該客戶端輪詢時所送之輸入物件；clientChange帶當前存活客戶端數量
+ * @returns {Object} 回傳事件物件，可監聽clientEnter、clientLeave、clientChange、error事件，並保留instWConverServer原有之execute、upload、download、handler事件；另掛載broadcast、getClients、getMessages、clearBroadcast函數。clientEnter與clientLeave帶(clientId, data)，data為該客戶端輪詢時所送之輸入物件；clientChange帶當前存活客戶端數量。clearBroadcast為停止並釋放：清除本套件之計時器與在線偵測(行程可立即結束)、移除所掛之execute監聽(其後不再回應輪詢)，並對已發出clientEnter之客戶端補發clientLeave與clientChange使進出成對，其後不再派發事件；停止後broadcast無作用、getClients回傳[]、getMessages回傳{}，可重複呼叫。error事件之內容一律為{ msg, err }，msg為描述字串、err為原因(原始錯誤或出錯之值)：輪詢處理失敗為{ msg: '[sys:polling] error', err }；監聽器之同步拋錯不會使行程崩潰，改以error事件通知，內容為{ msg: 'listener of event[x] error', err }(x為事件名、err為所拋之值)，無error監聽者時改以console.error輸出；error監聽器自身拋錯亦以console.error輸出。惟依EventEmitter規範，同一次派發中先拋錯之監聽器會中止該次派發，其後之監聽器不再被呼叫；async監聽器之reject不被攔截，須由監聽器自行處理
  * @example
  *
  * import WConverhpServer from 'w-converhp/src/WConverhpServer.mjs'
@@ -70,12 +71,8 @@ function WServBroadcastServer(instWConverServer, opt = {}) {
         throw new Error(`instWConverServer is not an EventEmitter`)
     }
 
-    //eeEmit
-    let eeEmit = (name, ...args) => {
-        setTimeout(() => {
-            instWConverServer.emit(name, ...args)
-        }, 1)
-    }
+    //eeEmit, 派發與error事件格式見genEeEmit
+    let eeEmit = genEeEmit(instWConverServer)
 
     //ea
     let ea = alive()
@@ -113,8 +110,8 @@ function WServBroadcastServer(instWConverServer, opt = {}) {
         eeEmit('clientChange', now)
     })
 
-    //execute
-    instWConverServer.on('execute', function(func, input, pm) {
+    //onExecute, 具名以供clearBroadcast移除
+    let onExecute = function(func, input, pm) {
         if (func === '[sys:polling]') {
             // console.log(`execute: [sys:polling]`, input)
             try {
@@ -139,11 +136,14 @@ function WServBroadcastServer(instWConverServer, opt = {}) {
             }
             catch (err) {
                 // console.log('[sys:polling] error', err)
-                eeEmit('error', err)
+                eeEmit('error', { msg: '[sys:polling] error', err })
                 pm.reject('[sys:polling] error')
             }
         }
-    })
+    }
+
+    //execute
+    instWConverServer.on('execute', onExecute)
 
     //broadcast
     let broadcast = (data) => {
@@ -176,9 +176,28 @@ function WServBroadcastServer(instWConverServer, opt = {}) {
         return cloneDeep(broadcastMessages) //使用cloneDeep避免外部修改內部數據
     }
 
-    //clearBroadcast
+    //clearBroadcast, 停止並釋放, 可重複呼叫
+    //why: 原只清廣播計時器, 在線偵測之計時器要到全部客戶端逾時(預設10秒)才自行清除, 期間撐住行程且停止後仍派發clientLeave; 停止後才到之輪詢亦會再啟動在線偵測
     let clearBroadcast = () => {
+
+        //停止修剪廣播訊息之計時器
         clearInterval(t)
+
+        //移除execute監聽, 停止後不再回應輪詢, 亦不再啟動在線偵測
+        instWConverServer.off('execute', onExecute)
+
+        //釋放在線偵測, 其回傳已發出enter而尚未leave之客戶端, 對其補發clientLeave與clientChange使進出成對; 再次呼叫回傳[]故不重複補發
+        let rs = ea.clear()
+        let n = rs.length
+        each(rs, (r) => {
+            n--
+            eeEmit('clientLeave', r.key, r.data)
+            eeEmit('clientChange', n)
+        })
+
+        //清空廣播訊息, 其後broadcast無對象而無作用
+        broadcastMessages = {}
+
     }
 
     //save
