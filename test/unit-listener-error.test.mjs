@@ -2,11 +2,13 @@ import assert from 'assert'
 import evem from 'wsemi/src/evem.mjs'
 import WServBroadcastServer from '../src/WServBroadcastServer.mjs'
 import WServBroadcastClient from '../src/WServBroadcastClient.mjs'
+import { waitFor } from './tools/helpers.mjs'
 
 
 //本檔對應之契約: 本套件於計時器內派發事件或呼叫外部函數時, 使用端監聽器之同步拋錯與外部函數之同步拋錯皆不得使行程崩潰(uncaughtException);
 //error事件之內容一律為{ msg, err }: 監聽器拋錯為{ msg: 'listener of event[x] error', err: 所拋之值 }, 輪詢失敗為{ msg: '[sys:polling] error', err: 原因 };
 //error監聽器自身拋錯則改以console.error輸出; 派發仍於呼叫之後才發生(維持脫勾之時序)
+//另(兩端JSDoc): 本套件自發之error於派發當下無error監聽者時改以console.error輸出, 有監聽者時照常發error事件
 
 
 let delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -138,6 +140,40 @@ describe('listener error', function() {
             assert.deepStrictEqual(got, ['c1']) //契約: 其後照常派發
         })
 
+        it('無error監聽者時, 輪詢例外以console.error輸出', async function() {
+            let srv = WServBroadcastServer(evem())
+            let calls = await captureConsoleError(async () => {
+                poll(srv, 'c1', genPm({
+                    resolve: () => {
+                        throw new Error('resolve failed')
+                    },
+                }))
+                await delay(50)
+                srv.clearBroadcast()
+                await delay(20)
+            })
+            assert.ok(calls.some((args) => args.some((a) => String(a).includes('[sys:polling] error'))), `應以console.error輸出, 實得: ${JSON.stringify(calls.map((args) => String(args[0])))}`) //契約: 本套件自發之error於無error監聽者時改以console.error輸出
+        })
+
+        it('有error監聽者時照常發error事件, 不以console.error輸出', async function() {
+            let srv = WServBroadcastServer(evem())
+            let errs = []
+            srv.on('error', (err) => {
+                errs.push(err)
+            })
+            let calls = await captureConsoleError(async () => {
+                poll(srv, 'c1', genPm({
+                    resolve: () => {
+                        throw new Error('resolve failed')
+                    },
+                }))
+                await delay(50)
+            })
+            srv.clearBroadcast()
+            assert.strict.equal(errs.length, 1) //契約: 有監聽者時照常發error事件
+            assert.deepStrictEqual(calls, []) //契約: 有監聽者時不以console.error輸出
+        })
+
     })
 
     describe('client', function() {
@@ -223,6 +259,35 @@ describe('listener error', function() {
             cli.clearBroadcast()
             await delay(20)
             assert.ok(errs.length >= 1 && errs.every((e) => e && e.msg === '[sys:polling] error' && e.err instanceof TypeError), `應收到err為TypeError之error事件, 實得: ${JSON.stringify(errs)}`) //契約: 外部函數回傳非預期值不使行程崩潰, 以{ msg, err }通知
+        })
+
+        it('無error監聽者時, 輪詢失敗以console.error輸出', async function() {
+            let nExec = 0
+            let cli = WServBroadcastClient(genConnector(() => {
+                nExec++
+                return Promise.reject(new Error('conn failed'))
+            }), { timePolling: 50 })
+            let calls = await captureConsoleError(async () => {
+                await waitFor(() => nExec >= 2) //待第2輪送出(第1輪之error必已派發), 以條件而非固定時窗等待, 避免平行執行之負載下少輪
+                cli.clearBroadcast()
+                await delay(20)
+            })
+            assert.ok(calls.some((args) => args.some((a) => String(a).includes('[sys:polling] error'))), `應以console.error輸出, 實得: ${JSON.stringify(calls.map((args) => String(args[0])))}`) //契約: 本套件自發之error於無error監聽者時改以console.error輸出
+        })
+
+        it('有error監聽者時照常發error事件, 不以console.error輸出', async function() {
+            let cli = WServBroadcastClient(genConnector(() => Promise.reject(new Error('conn failed'))), { timePolling: 50 })
+            let errs = []
+            cli.on('error', (err) => {
+                errs.push(err)
+            })
+            let calls = await captureConsoleError(async () => {
+                await waitFor(() => errs.length >= 1) //待收到error, 以條件而非固定時窗等待
+                cli.clearBroadcast()
+                await delay(20)
+            })
+            assert.ok(errs.length >= 1) //契約: 有監聽者時照常發error事件
+            assert.deepStrictEqual(calls, []) //契約: 有監聽者時不以console.error輸出
         })
 
     })

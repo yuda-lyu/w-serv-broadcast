@@ -1,9 +1,12 @@
 import assert from 'assert'
 import evem from 'wsemi/src/evem.mjs'
 import WServBroadcastClient from '../src/WServBroadcastClient.mjs'
+import { waitFor, countTimeout, genConnector, recordClient } from './tools/helpers.mjs'
 
 
 //本檔對應之契約: 前端之通訊物件須為具execute函數之事件物件(例如WConverhpClient); 未給、非事件物件、或無execute函數者永遠無法輪詢, 於建構時即拋錯
+//另(WServBroadcastClient之JSDoc): 事件物件須具emit與on; timePolling為正整數, 0與無效值取預設2000, 超過計時器上限2147483647者夾至上限;
+//建構失敗(例如通訊物件不可擴充)時不殘留輪詢計時器; 進度回呼不取參數
 
 
 let delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -49,6 +52,64 @@ describe('client construct', function() {
         await delay(200)
         cli.clearBroadcast()
         assert.strict.equal(opened, true) //契約: 有效之通訊物件照常輪詢
+    })
+
+    it('通訊物件缺on時建構即拋錯', function() {
+        let ev = evem()
+        ev.execute = () => Promise.resolve([])
+        ev.on = undefined //遮蔽原型之on
+        checkThrow(ev, 'instWConverClient is not an EventEmitter') //契約: 事件物件須具emit與on
+    })
+
+    it('timePolling為0、負數、非整數或無效值時取預設2000', async function() {
+        for (let timePolling of [0, -1, 1.5, 'abc', null]) {
+            let cli = WServBroadcastClient(genConnector(() => Promise.resolve([])), { timePolling })
+            await delay(150)
+            cli.clearBroadcast()
+            assert.strict.equal(cli.nExec, 0, `timePolling=${timePolling}`) //契約: 0與無效值取預設2000(150ms內不輪詢)
+        }
+    })
+
+    it('timePolling超過計時器上限時夾至上限, 不發出計時器溢位警告', async function() {
+        let warnings = []
+        let onWarning = (w) => {
+            warnings.push(w.name)
+        }
+        process.on('warning', onWarning)
+        try {
+            let cli = WServBroadcastClient(genConnector(() => Promise.resolve([])), { timePolling: 3000000000 })
+            await delay(150)
+            cli.clearBroadcast()
+            assert.strict.equal(cli.nExec, 0) //契約: 超過計時器上限者夾至上限(不會因溢位改為1ms而密集輪詢)
+        }
+        finally {
+            process.off('warning', onWarning)
+        }
+        assert.ok(!warnings.includes('TimeoutOverflowWarning'), `不應有TimeoutOverflowWarning, 實得: ${warnings}`) //契約: 夾至上限2147483647
+    })
+
+    it('通訊物件不可擴充而建構拋錯時, 不殘留輪詢計時器亦不輪詢', async function() {
+        let ev = genConnector(() => Promise.resolve([]))
+        Object.preventExtensions(ev)
+        let n0 = countTimeout()
+        assert.throws(() => {
+            WServBroadcastClient(ev, { timePolling: 30 })
+        })
+        assert.strict.equal(countTimeout(), n0) //契約: 建構失敗時不殘留輪詢計時器
+        await delay(120)
+        assert.strict.equal(ev.nExec, 0) //契約: 建構失敗時不輪詢
+    })
+
+    it('通訊物件不帶參數呼叫進度回呼時不使該輪失敗', async function() {
+        let cli = WServBroadcastClient(genConnector((n, func, input, cbProgress) => {
+            cbProgress()
+            return Promise.resolve([])
+        }), { timePolling: 30 })
+        let rec = recordClient(cli)
+        await waitFor(() => rec.count('open') === 1 && cli.nExec >= 2)
+        cli.clearBroadcast()
+        assert.strict.equal(rec.count('error'), 0) //契約: 進度回呼不取參數
+        assert.strict.equal(rec.count('open'), 1) //契約: 該輪照常成為合格回應
     })
 
 })
