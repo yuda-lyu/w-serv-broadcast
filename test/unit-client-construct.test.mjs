@@ -6,7 +6,7 @@ import { waitFor, countTimeout, genConnector, recordClient } from './tools/helpe
 
 //本檔對應之契約: 前端之通訊物件須為具execute函數之事件物件(例如WConverhpClient); 未給、非事件物件、或無execute函數者永遠無法輪詢, 於建構時即拋錯
 //另(WServBroadcastClient之JSDoc): 事件物件須具emit與on; timePolling為正整數, 0與無效值取預設2000, 超過計時器上限2147483647者夾至上限;
-//建構失敗(例如通訊物件不可擴充)時不殘留輪詢計時器; 進度回呼不取參數
+//建構失敗(例如通訊物件不可擴充)時不殘留輪詢計時器; 進度回呼不取參數; 執行環境須內建AbortController, 否則建構時拋錯(見unit-client-abort-noac.test.mjs)
 
 
 let delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
