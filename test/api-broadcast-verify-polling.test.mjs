@@ -20,19 +20,24 @@ let DENIED = '[sys:polling] permission denied'
 
 //startServer, 真WConverhpServer + 本套件伺服端(注入verifyPolling: 僅token為GOOD者放行), 待其啟動
 //啟動失敗(例如埠被占用)時WConverhpServer只發error事件而不拋錯, 於此轉為拋錯, 使該案失敗而非以錯誤之前提通過
-let startServer = async () => {
+//o.noHook為true時不提供verifyPolling(供驗證前端有getToken而伺服端漏設鉤子時, token仍不進入事件資料)
+let startServer = async (o = {}) => {
     let commErrs = []
     let seenInputs = []
     let srv = new WConverhpServer({ port, apiName: 'api', verifyConn: () => true })
     srv.on('error', (e) => {
         commErrs.push(String(e))
     })
-    srv = new WServBroadcastServer(srv, {
+    let opt = {
         verifyPolling: (input) => {
             seenInputs.push(input)
             return input[KEY] === GOOD
         },
-    })
+    }
+    if (o.noHook === true) {
+        opt = {}
+    }
+    srv = new WServBroadcastServer(srv, opt)
     let enters = []
     let errs = []
     srv.on('clientEnter', (clientId, data) => {
@@ -127,6 +132,32 @@ describe('api broadcast verifyPolling', function() {
             assert.deepStrictEqual(enters, []) //契約: 拒絕不觸發clientEnter
         }
         finally {
+            srv.clearBroadcast()
+            await srv.stop()
+        }
+    })
+
+    it('伺服端未提供verifyPolling而前端提供getToken(版本錯置)時: 輪詢照常放行, 但token不進入clientEnter/clientLeave/在線身分之data', async function() {
+        let { srv, enters } = await startServer({ noHook: true })
+        let leaves = []
+        srv.on('clientLeave', (clientId, data) => {
+            leaves.push({ clientId, data })
+        })
+        let a = genClient('cid-a', { getToken: () => GOOD })
+        try {
+            assert.ok(await waitFor(() => a.rec.count('open') === 1, 5000), '未提供鉤子時仍放行') //契約: 未提供鉤子時行為同現行(任何能通過通訊層者皆可輪詢)
+            srv.broadcast('m-x')
+            assert.ok(await waitFor(() => a.rec.count('broadcast') === 1, 5000), '應收到廣播')
+            assert.deepStrictEqual(enters.map((v) => v.clientId), ['cid-a'])
+            assert.deepStrictEqual(enters[0].data, { clientId: 'cid-a' }) //契約: 憑證不得進入事件資料, 不論是否提供鉤子
+            assert.deepStrictEqual(srv.getClients().map((v) => v.data), [{ clientId: 'cid-a' }]) //契約: 在線身分之data無token
+            a.cli.clearBroadcast()
+            srv.clearBroadcast()
+            assert.ok(await waitFor(() => leaves.length === 1, 3000))
+            assert.ok(!JSON.stringify({ enters, leaves }).includes(GOOD), 'token不得出現在任何事件資料') //契約: token不進入交使用端之事件資料
+        }
+        finally {
+            a.cli.clearBroadcast()
             srv.clearBroadcast()
             await srv.stop()
         }

@@ -7,7 +7,8 @@ import { delay, waitFor, countTimeout, captureConsole, hasCall, recordServer, po
 //本檔對應之契約(WServBroadcastServer之JSDoc, opt.verifyPolling):
 //使用端注入verifyPolling(input)驗證輪詢之身分; 每次[sys:polling]於任何副作用(建立佇列、在線身分、取出訊息)之前呼叫, 傳入輪詢之輸入(複本, 含clientId與固定鍵__sysToken__之token);
 //回傳(或resolve)嚴格true才放行, 其他值、拋錯或reject一律拒絕: 以固定訊息[sys:polling] permission denied拒絕該次輪詢, 不建立任何狀態, 並發error事件供稽核;
-//放行時行為同未注入, 惟交給使用端之clientEnter/clientLeave之data已剝除token; 未注入(undefined或null)時行為同現行(輸入原物件交付, 不剝除任何鍵);
+//放行時行為同未注入, 惟交給使用端之clientEnter/clientLeave之data已剝除token; 未提供(undefined或null)時: 輸入不含__sysToken__者行為同現行(同步回應、輸入原物件交付),
+//含該鍵者取副本去鍵後交付(憑證不得進入事件資料, 不論是否提供鉤子), 不改動呼叫端傳入之原物件(broadcast-run02: 主控裁定一律剝除);
 //給了但非函數者於建構時拋錯(不殘留計時器、監聽與掛載屬性); 伺服端停止時在途之驗證於解析後不建立任何狀態、不發任何事件、不回應
 
 
@@ -37,6 +38,40 @@ let gen = (verifyPolling) => {
         errs.push(e)
     })
     return { srv, ms, enters, leaves, errs }
+}
+
+//noHookOpts, 未提供verifyPolling之各種寫法(undefined與null皆視為未提供)
+let noHookOpts = [{}, { verifyPolling: undefined }, { verifyPolling: null }, undefined]
+
+//genNoHook, 以未提供verifyPolling之設定建構伺服端並記錄進出事件
+let genNoHook = (opt) => {
+    let srv = WServBroadcastServer(evem(), opt)
+    made.push(srv)
+    let ms = recordServer(srv)
+    let enters = []
+    let leaves = []
+    srv.on('clientEnter', (clientId, data) => {
+        enters.push({ clientId, data })
+    })
+    srv.on('clientLeave', (clientId, data) => {
+        leaves.push({ clientId, data })
+    })
+    return { srv, ms, enters, leaves }
+}
+
+//syncPoll, 模擬一次輪詢並回傳settled(): 回呼於emit返回前已結算者才有值(用以斷言同步回應)
+let syncPoll = (srv, input) => {
+    let settled = null
+    let pm = {
+        resolve: (v) => {
+            settled = { resolve: v }
+        },
+        reject: (v) => {
+            settled = { reject: v }
+        },
+    }
+    srv.emit('execute', '[sys:polling]', input, pm)
+    return { settled: () => settled }
 }
 
 //deferred, 可由測試決定何時結算之promise
@@ -552,31 +587,64 @@ describe('server verifyPolling', function() {
             }
         })
 
-        it('未注入(undefined或null)時行為同現行: 同步回應、輸入原物件交付(不剝除任何鍵)', async function() {
-            for (let opt of [{}, { verifyPolling: undefined }, { verifyPolling: null }, undefined]) {
-                let srv = WServBroadcastServer(evem(), opt)
-                made.push(srv)
-                let enters = []
-                srv.on('clientEnter', (clientId, data) => {
-                    enters.push({ clientId, data })
-                })
-                //同步回應: 回呼於emit返回前已結算(現行行為, 未注入時不增加任何非同步)
-                let settled = null
-                let input = { clientId: 'a', [KEY]: TOKEN, k: 1 }
-                let pm = {
-                    resolve: (v) => {
-                        settled = { resolve: v }
-                    },
-                    reject: (v) => {
-                        settled = { reject: v }
-                    },
-                }
-                srv.emit('execute', '[sys:polling]', input, pm)
-                assert.deepStrictEqual(settled, { resolve: [] }, JSON.stringify(opt)) //契約: 未注入時同步回應
+        it('未提供(undefined或null)且輸入不含__sysToken__時行為同現行: 同步回應、輸入原物件交付', async function() {
+            for (let opt of noHookOpts) {
+                let { srv, enters } = genNoHook(opt)
+                let input = { clientId: 'a', k: 1, nested: { v: 2 } }
+                let h = syncPoll(srv, input)
+                assert.deepStrictEqual(h.settled(), { resolve: [] }, JSON.stringify(opt)) //契約: 未提供時同步回應(不增加任何非同步)
                 assert.ok(await waitFor(() => enters.length === 1))
-                assert.strict.equal(enters[0].data, input, '未注入時clientEnter之data即輸入原物件') //契約: 未注入時行為同現行(輸入原物件交付)
-                srv.clearBroadcast()
+                assert.strict.equal(enters[0].data, input, '輸入不含該鍵時clientEnter之data即輸入原物件') //契約: 不含該鍵之輸入行為同現行(原物件交付)
+                assert.deepStrictEqual(srv.getClients().map((v) => v.data), [{ clientId: 'a', k: 1, nested: { v: 2 } }], '在線身分之data內容同輸入(getClients回傳複本)') //契約: 同上(getClients以cloneDeep回傳, 不以identity斷言)
             }
+        })
+
+        it('未提供(undefined或null)且輸入含__sysToken__時: 同步回應; 事件與在線身分之data無該鍵(值為何皆剝除)、其餘欄位保留; 呼叫端原物件不被改動', async function() {
+            let vals = [TOKEN, '', null, 123]
+            for (let opt of noHookOpts) {
+                for (let val of vals) {
+                    let tag = `${JSON.stringify(opt)} 值${JSON.stringify(val)}`
+                    let { srv, enters, leaves } = genNoHook(opt)
+                    let input = { clientId: 'a', [KEY]: val, k: 1, nested: { v: 2 } }
+                    let h = syncPoll(srv, input)
+                    assert.deepStrictEqual(h.settled(), { resolve: [] }, `${tag}: 仍同步回應`) //契約: 未提供時同步回應
+                    assert.ok(await waitFor(() => enters.length === 1), tag)
+                    assert.deepStrictEqual(enters[0].data, { clientId: 'a', k: 1, nested: { v: 2 } }, `${tag}: clientEnter之data無該鍵, 其餘保留`) //契約: 交使用端監聽之前剝除__sysToken__
+                    assert.notStrictEqual(enters[0].data, input, `${tag}: 含該鍵時交付副本`) //契約: 含該鍵時取副本去鍵後交付
+                    assert.ok(Object.hasOwn(input, KEY) && input[KEY] === val, `${tag}: 呼叫端原物件仍含該鍵與原值`) //契約: 不得改動呼叫端傳入之原物件
+                    assert.deepStrictEqual(srv.getClients().map((v) => v.data), [{ clientId: 'a', k: 1, nested: { v: 2 } }], `${tag}: 在線身分之data無該鍵`) //契約: 在線身分之data(clientLeave取其最後輸入)無該鍵
+
+                    //第二輪(token輪替)與補發之clientLeave: 最後一次輸入亦已剝除
+                    let input2 = { clientId: 'a', [KEY]: 'tok-2', k: 2 }
+                    syncPoll(srv, input2)
+                    assert.ok(Object.hasOwn(input2, KEY), `${tag}: 第二輪原物件亦不被改動`)
+                    srv.clearBroadcast()
+                    assert.ok(await waitFor(() => leaves.length === 1), tag)
+                    assert.deepStrictEqual(leaves[0], { clientId: 'a', data: { clientId: 'a', k: 2 } }, `${tag}: clientLeave之data為最後一次輸入且無該鍵`) //契約: clientLeave之data無該鍵
+                    assert.ok(!JSON.stringify({ enters, leaves }).includes('tok-2') && (val !== TOKEN || !JSON.stringify({ enters, leaves }).includes(TOKEN)), `${tag}: 事件資料不得含token`) //契約: token不進入交使用端之事件資料
+                }
+            }
+        })
+
+        it('未提供鉤子且輸入含__sysToken__與循環參照時, data及其巢狀參照皆無該鍵, 呼叫端原物件不變', async function() {
+            let { srv, enters } = genNoHook({})
+            let input = { clientId: 'a', [KEY]: TOKEN }
+            input.self = input
+            syncPoll(srv, input)
+            assert.ok(await waitFor(() => enters.length === 1))
+            assert.ok(!Object.hasOwn(enters[0].data, KEY)) //契約: 交使用端之data無該鍵
+            assert.ok(!Object.hasOwn(enters[0].data.self, KEY), '巢狀(循環)參照所指亦不得帶token') //契約: token不進入交使用端之任何資料
+            assert.ok(Object.hasOwn(input, KEY), '呼叫端之原物件不被改動') //契約: 不得改動呼叫端傳入之原物件
+        })
+
+        it('未提供鉤子且clientId不合(含__sysToken__)時, 仍只拒絕invalid clientId: 不發事件、不建立在線身分、不改動原物件', async function() {
+            let { srv, ms, enters } = genNoHook({})
+            let input = { clientId: '', [KEY]: TOKEN }
+            let r = await pollRaw(srv, input)
+            assert.deepStrictEqual(r, { reject: '[sys:polling] invalid clientId' }) //契約: clientId不是非空字串者拒絕(R02)
+            await delay(30)
+            assert.deepStrictEqual([ms, enters, srv.getClients()], [[], [], []]) //契約: 拒絕不發事件、不建立在線身分
+            assert.ok(Object.hasOwn(input, KEY), '原物件不被改動')
         })
 
         it('與其後註冊且對[sys:polling]同步回應之監聽並存時: 未提供鉤子由本套件先結算, 提供鉤子則由該監聽先結算(回覆為非同步, 該監聽須略過[sys:polling])', async function() {

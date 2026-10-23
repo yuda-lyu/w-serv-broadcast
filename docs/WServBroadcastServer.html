@@ -74,13 +74,14 @@
 <dl class="details">
     
     <dt class="tag-description">Description:</dt>
-    <dd class="tag-description"><ul class="dummy"><li><p>伺服器端之資料控制與廣播器</p></li></ul></dd>
+    <dd class="tag-description"><ul class="dummy"><li><p>伺服器端之資料控制與廣播器</p>
+<p>身分驗證責任：本套件不驗證身分(token)，只於輪詢([sys:polling])之任何副作用之前呼叫使用端注入之opt.verifyPolling；未注入時任何能通過通訊層(例如WConverhpServer之verifyConn)者皆可輪詢，即取得其後之全部廣播(含部署方broadcast之內容)並建立在線身分與佇列，未注入時之預設為放行。使用端須自行完整驗證——verifyConn驗連線之token(含本系統使用者存在、啟用、部署方授權)；verifyPolling驗輪詢之身分(須同等完整，反查執行身分即驗證身分，不可只解碼或只查id，並自行決定空身分是否放行，另須檢查clientId歸屬該身分)；應用端自行註冊之其他execute監聽(各函數)與資料授權各自把關，含函數層級之角色或成員檢查。</p></li></ul></dd>
     
 
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="WServBroadcastServer.mjs.html">WServBroadcastServer.mjs</a>, <a href="WServBroadcastServer.mjs.html#line63">line 63</a>
+        <a href="WServBroadcastServer.mjs.html">WServBroadcastServer.mjs</a>, <a href="WServBroadcastServer.mjs.html#line73">line 73</a>
     </li></ul></dd>
     
 
@@ -127,7 +128,7 @@
 
     <h5 class="h5-examples">Example</h5>
     
-    <pre class="prettyprint"><code>import WConverhpServer from 'w-converhp/src/WConverhpServer.mjs'import WServBroadcastServer from './src/WServBroadcastServer.mjs'let opt = {    port: 8080,    apiName: 'api',    pathStaticFiles: '.', //要存取專案資料夾下web.html, 故不能給dist    verifyConn: () => {        return true    },}//instWConverServerlet instWConverServer = new WConverhpServer(opt)//instWConverServerinstWConverServer = new WServBroadcastServer(instWConverServer)let n = 0setInterval(() => {    n++    instWConverServer.broadcast(`n=${n}`)}, 1500)instWConverServer.on('clientEnter', function(clientId, data) {    console.log(`Server[port:${opt.port}]: clientEnter`, clientId, data)})instWConverServer.on('clientLeave', function(clientId, data) {    console.log(`Server[port:${opt.port}]: clientLeave`, clientId, data)})instWConverServer.on('clientChange', function(numClients) {    console.log(`Server[port:${opt.port}]: clientChange`, numClients)})instWConverServer.on('error', function(err) {    console.log(`Server[port:${opt.port}]: error`, err)})instWConverServer.on('handler', function(data) {    // console.log(`Server[port:${opt.port}]: handler`, data)})</code></pre>
+    <pre class="prettyprint"><code>import WConverhpServer from 'w-converhp/src/WConverhpServer.mjs'import WServBroadcastServer from './src/WServBroadcastServer.mjs'let opt = {    port: 8080,    apiName: 'api',    pathStaticFiles: '.', //要存取專案資料夾下web.html, 故不能給dist    verifyConn: () => {        return true    },}//instWConverServerlet instWConverServer = new WConverhpServer(opt)//instWConverServer, 未提供verifyPolling時任何能通過verifyConn者皆可輪詢; 驗證輪詢之身分須注入verifyPolling(嚴格回傳true才放行), 前端以getToken放入token://instWConverServer = new WServBroadcastServer(instWConverServer, {//    verifyPolling: async (input) => {//        let userId = await getUserIdByToken(input.__sysToken__) //使用端自行完整驗證token, 並檢查input.clientId歸屬該身分//        return userId !== ''//    },//})instWConverServer = new WServBroadcastServer(instWConverServer)let n = 0setInterval(() => {    n++    instWConverServer.broadcast(`n=${n}`)}, 1500)instWConverServer.on('clientEnter', function(clientId, data) {    console.log(`Server[port:${opt.port}]: clientEnter`, clientId, data)})instWConverServer.on('clientLeave', function(clientId, data) {    console.log(`Server[port:${opt.port}]: clientLeave`, clientId, data)})instWConverServer.on('clientChange', function(numClients) {    console.log(`Server[port:${opt.port}]: clientChange`, numClients)})instWConverServer.on('error', function(err) {    console.log(`Server[port:${opt.port}]: error`, err)})instWConverServer.on('handler', function(data) {    // console.log(`Server[port:${opt.port}]: handler`, data)})</code></pre>
 
 
 
@@ -230,7 +231,77 @@
                 </td>
             
 
-            <td class="description last"><p>輸入設定物件，預設{}</p></td>
+            <td class="description last"><p>輸入設定物件，預設{}</p>
+                <h6>Properties</h6>
+                
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+        <th>Attributes</th>
+        
+
+        
+        <th>Default</th>
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>verifyPolling</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">function</span>
+
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                    <code>null</code>
+                
+                </td>
+            
+
+            <td class="description last"><p>輸入輪詢之身分驗證鉤子函數(sync或async皆可)，由使用端注入，預設null(不驗證，行為同未提供本選項時：本套件不驗證身分，任何能通過通訊層者皆可輪詢，風險見上方「身分驗證責任」)。給予函數時，每次[sys:polling]於任何副作用(建立佇列、建立或刷新在線身分、取出訊息、發出clientEnter等事件)之前呼叫，傳入該次輪詢之輸入物件之複本(含clientId、前端opt.getToken放於固定鍵__sysToken__之token，及使用端自行放入之其他欄位)；回傳(或resolve，thenable亦以Promise規則吸收)嚴格true才放行，其他值(含看似為真之值，例如1、'user-1'、{})、拋錯或reject一律拒絕：以固定訊息'[sys:polling] permission denied'拒絕該次輪詢(訊息不含拒絕原因，原因只經error事件供稽核)，不建立或刷新任何狀態(已在線者之佇列亦不取出)，並發error事件(內容見回傳之說明)。放行後交給使用端監聽之clientEnter、clientLeave之data已剝除固定鍵__sysToken__，使token不進入事件資料(未提供verifyPolling時同樣剝除：輸入含自有鍵__sysToken__者取副本去鍵後交付，不改動呼叫端傳入之原物件；不含該鍵者行為同現行，輸入原物件交付)；提供verifyPolling時，clientId、傳給鉤子之輸入與交給使用端之data皆取自輪詢到達當下之同一份快照(深複製)，驗證期間原輸入物件被他人改動(例如同一事件物件上其他execute監聽共用同一輸入)不影響檢查之值與使用之值；提供verifyPolling時，輪詢之回覆(含拒絕)於鉤子結算後非同步送出(未提供時同現行，同步回覆)，故同一事件物件上於本套件之後註冊、且對[sys:polling]同步回應之監聽(例如對所有函數名皆回應invalid token之資料通道)會先結算該請求而使輪詢失敗，此類監聽須略過<a href="%E4%B8%8D%E5%9B%9E%E6%87%89">sys:polling</a>。鉤子須自行驗證token是否有效、使用者是否存在且啟用、部署方是否授權，並檢查clientId歸屬該身分(clientId由前端自訂，須唯一，否則與他人互相取走訊息)。clientId不是非空字串者先於鉤子被拒絕([sys:polling] invalid clientId)，不呼叫鉤子；本套件不內建鉤子逾時，鉤子不結算時該次輪詢懸置至前端逾時，須由鉤子自行處理逾時；clearBroadcast時在途之驗證於其結算後不建立任何狀態、不發任何事件、不回應。給了非函數(undefined與null除外)時建構拋錯(opt.verifyPolling is not a function)，不靜默放行</p></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+            </td>
         </tr>
 
     
@@ -256,7 +327,7 @@
 
         
 <div class="param-desc">
-    <p>回傳事件物件，可監聽clientEnter、clientLeave、clientChange、error事件，並保留instWConverServer原有之execute、upload、download、handler事件；另掛載broadcast、getClients、getMessages、clearBroadcast函數。本套件只處理函數名為[sys:polling]之execute，其他函數名須由應用端自行註冊execute監聽並回應，否則該請求懸置至前端逾時；本套件之execute監聽須先於「對所有函數名皆回應」之監聽註冊，否則輪詢由該監聽回應。輪詢之clientId須為非空字串，任意字串(含__proto__、constructor、含.或[]者)皆為一般識別，回覆一律為陣列；clientId不是非空字串者拒絕該次輪詢([sys:polling] invalid clientId)，不發事件、不建立在線身分。clientEnter與clientLeave帶(clientId, data)，clientEnter之data為該客戶端首次輪詢時所送之輸入物件，clientLeave之data為其最後一次輪詢時所送者；clientChange帶當前存活客戶端數量(含剛輪詢而尚未發出clientEnter者)。broadcast以呼叫當下之值(複製)廣播給當前在線之客戶端，data須可序列化(同通訊服務之規則)，否則同批廣播於輪詢時遺失。在線逾時固定10秒，傳遞為至多一次：客戶端兩次成功輪詢之間隔達10秒時視為離線並丟棄其未取走之廣播，回覆送不到(例如不可序列化之data、傳輸失敗)時同批之廣播遺失。clearBroadcast為停止並釋放：清除本套件之計時器與在線偵測(行程可立即結束)、移除所掛之execute監聽(其後不再回應輪詢，含於同一次execute派發中先註冊之監聽內停止者；停止後之輪詢由同一事件物件上其他execute監聽回應，無其他監聽時由通訊服務立即拒絕，另有不回應[sys:polling]之監聽時懸置至前端逾時)，並對已送達clientEnter而尚未送達clientLeave之客戶端補發clientLeave與clientChange使進出成對；停止前已排定而尚未送達之事件不再派發，補發之後不再派發本套件之事件，惟呼叫當下那次派發之其餘監聽器仍會收到；停止後之監聽器拋錯(含補發事件之監聽器)以console.error輸出；停止後broadcast無作用、getClients回傳[]、getMessages回傳{}，可重複呼叫。getMessages回傳以clientId為鍵之一般物件(複製)。error事件之內容一律為{ msg, err }，msg為描述字串、err為原因(原始錯誤或出錯之值)：輪詢處理失敗為{ msg: '[sys:polling] error', err }；本套件之error於派發當下無error監聽者時改以console.error輸出；監聽器之同步拋錯不會使行程崩潰，改以error事件通知，內容為{ msg: 'listener of event[x] error', err }(x為事件名、err為所拋之值)，無error監聽者時改以console.error輸出；error監聽器自身拋錯亦以console.error輸出。惟依EventEmitter規範，同一次派發中先拋錯之監聽器會中止該次派發，其後之監聽器不再被呼叫；async監聽器之reject不被攔截，須由監聽器自行處理</p>
+    <p>回傳事件物件，可監聽clientEnter、clientLeave、clientChange、error事件，並保留instWConverServer原有之execute、upload、download、handler事件；另掛載broadcast、getClients、getMessages、clearBroadcast函數。本套件只處理函數名為[sys:polling]之execute，其他函數名須由應用端自行註冊execute監聽並回應，否則該請求懸置至前端逾時；本套件之execute監聽須先於「對所有函數名皆回應」之監聽註冊，否則輪詢由該監聽回應。輪詢之clientId須為非空字串，任意字串(含__proto__、constructor、含.或[]者)皆為一般識別，回覆一律為陣列；clientId不是非空字串者拒絕該次輪詢([sys:polling] invalid clientId)，不發事件、不建立在線身分。clientEnter與clientLeave帶(clientId, data)，clientEnter之data為該客戶端首次輪詢時所送之輸入物件，clientLeave之data為其最後一次輪詢時所送者(兩者皆已剝除token鍵__sysToken__，不論是否提供opt.verifyPolling)；clientChange帶當前存活客戶端數量(含剛輪詢而尚未發出clientEnter者)。broadcast以呼叫當下之值(複製)廣播給當前在線之客戶端，data須可序列化(同通訊服務之規則)，否則同批廣播於輪詢時遺失。在線逾時固定10秒，傳遞為至多一次：客戶端兩次成功輪詢之間隔達10秒時視為離線並丟棄其未取走之廣播，回覆送不到(例如不可序列化之data、傳輸失敗)時同批之廣播遺失。clearBroadcast為停止並釋放：清除本套件之計時器與在線偵測(行程可立即結束)、移除所掛之execute監聽(其後不再回應輪詢，含於同一次execute派發中先註冊之監聽內停止者；停止後之輪詢由同一事件物件上其他execute監聽回應，無其他監聽時由通訊服務立即拒絕，另有不回應[sys:polling]之監聽時懸置至前端逾時)，並對已送達clientEnter而尚未送達clientLeave之客戶端補發clientLeave與clientChange使進出成對；停止前已排定而尚未送達之事件不再派發，補發之後不再派發本套件之事件，惟呼叫當下那次派發之其餘監聽器仍會收到；停止後之監聽器拋錯(含補發事件之監聽器)以console.error輸出；停止後broadcast無作用、getClients回傳[]、getMessages回傳{}，可重複呼叫。getMessages回傳以clientId為鍵之一般物件(複製)。error事件之內容一律為{ msg, err }，msg為描述字串、err為原因(原始錯誤或出錯之值)：輪詢處理失敗為{ msg: '[sys:polling] error', err }；注入opt.verifyPolling時，鉤子回傳非true而拒絕為{ msg: '[sys:polling] permission denied', err }(err為鉤子之回傳值)，鉤子本身拋錯或reject而拒絕為{ msg: '[sys:polling] verifyPolling error', err }(err為所拋之值)，每次被拒絕各發一則(遠端大量輪詢時，error事件之數量同被拒絕之輪詢數)；本套件之error於派發當下無error監聽者時改以console.error輸出；監聽器之同步拋錯不會使行程崩潰，改以error事件通知，內容為{ msg: 'listener of event[x] error', err }(x為事件名、err為所拋之值)，無error監聽者時改以console.error輸出；error監聽器自身拋錯亦以console.error輸出。惟依EventEmitter規範，同一次派發中先拋錯之監聽器會中止該次派發，其後之監聽器不再被呼叫；async監聽器之reject不被攔截，須由監聽器自行處理</p>
 </div>
 
 
@@ -315,7 +386,7 @@
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Tue Oct 20 2026 04:22:42 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 4.0.5</a> on Sat Oct 24 2026 00:41:53 GMT+0800 (台北標準時間) using the <a href="https://github.com/clenemt/docdash">docdash</a> theme.
 </footer>
 
 <script>prettyPrint();</script>

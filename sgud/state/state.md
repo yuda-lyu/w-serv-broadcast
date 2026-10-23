@@ -2,9 +2,9 @@
 
 本檔記當前已開發功能之最新狀態(各功能做到哪裡、對應之規則帳本條目與測試檔、已知缺口與待辦、最近一次驗證或發布之版本),只記現況、不寫過程(過程見 `sgud/exp/experience.md`);藍圖見 `sgud/rule/rulebook.md`.
 
-- 更新:2026-10-23(主控任務 20261023213314 之 broadcast-run01).
+- 更新:2026-10-24(主控任務 20261023213314 之 broadcast-run02,承 run01).
 - 套件版本:`package.json` 為 1.1.10;本輪變更**尚未發布**,版號由主控決定(新增兩個選項,相容).
-- 最近一次驗證:2026-10-23 `npm test`(`mocha --parallel "test/*.test.mjs" --timeout 180000`)127 passing(既有 85 + 本輪新增 42);eslint 對本輪改動檔 0 error;w-serv-webdata 之 9 檔測試對修前/修後各跑一次皆 155 passing(複本,未動該 repo).
+- 最近一次驗證:2026-10-24(broadcast-run02)`npm test`(`mocha --parallel "test/*.test.mjs" --timeout 180000`)連跑 3 次皆 131 passing(既有 85 + 新增 46);eslint 對改動檔 0 error.w-serv-webdata 之 9 檔測試(複本,未動該 repo;其以未提供鉤子之方式使用本套件):run01 對修前/修後各跑一次皆 155 passing,run02 對現行碼再跑一次 155 passing.
 
 ## 功能現況
 
@@ -17,14 +17,14 @@
 | 建構先驗後配 | 完成 | R04 | `unit-*-construct` |
 | 停止時中止在途之輪詢請求(opt.signal) | 完成 | R10 | `unit-client-abort*`、`api-broadcast-polling`(api client stop) |
 | error 事件 `{ msg, err }` 與監聽器拋錯隔離 | 完成 | R01 | `unit-listener-error` |
-| **輪詢之身分驗證鉤子**:伺服端 `opt.verifyPolling`、前端 `opt.getToken`、固定鍵 `__sysToken__` | **完成(2026-10-23,待發布)** | **R11**、R04 | `unit-server-verify-polling`(28)、`unit-client-get-token`(11)、`api-broadcast-verify-polling`(3,埠 8098) |
+| **輪詢之身分驗證鉤子**:伺服端 `opt.verifyPolling`、前端 `opt.getToken`、固定鍵 `__sysToken__` | **完成(2026-10-23,待發布)** | **R11**、R04 | `unit-server-verify-polling`(31)、`unit-client-get-token`(11)、`api-broadcast-verify-polling`(4,埠 8098) |
 
 ## 已知缺口(皆為刻意不修或範圍外,詳見規則帳本第 2 節)
 
 - L1 通訊物件不支援 opt.signal 時,停止後其請求照常完成或重試.
 - L3 傳遞為至多一次.
 - L9 鉤子不內建逾時;L10 拒絕不限流;L11 未注入 verifyPolling 時預設放行(JSDoc 與 README 已載風險).
-- 未注入時不剝除輪詢輸入中的 `__sysToken__`(〈不得改變〉相容,R11 刻意不套①);若要恆剝除須主控裁示.
+- (已解決,broadcast-run02,主控 2026-10-24 裁定)輪詢輸入中的 `__sysToken__` 一律剝除,不論是否提供鉤子:含該鍵者取副本去鍵後交付、不改動原物件;不含該鍵者原物件交付(R11-4).
 
 ## 待辦與下游
 
