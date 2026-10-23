@@ -8,15 +8,19 @@ import iseobj from 'wsemi/src/iseobj.mjs'
 import isestr from 'wsemi/src/isestr.mjs'
 import alive from 'wsemi/src/alive.mjs'
 import genEeEmit from './genEeEmit.mjs'
+import pollingTokenKey from './pollingTokenKey.mjs'
 
 
 /**
  * 伺服器端之資料控制與廣播器
  *
+ * 身分驗證責任：本套件不驗證身分(token)，只於輪詢([sys:polling])之任何副作用之前呼叫使用端注入之opt.verifyPolling；未注入時任何能通過通訊層(例如WConverhpServer之verifyConn)者皆可輪詢，即取得其後之全部廣播(含部署方broadcast之內容)並建立在線身分與佇列，未注入時之預設為放行。使用端須自行完整驗證——verifyConn驗連線之token(含本系統使用者存在、啟用、部署方授權)；verifyPolling驗輪詢之身分(須同等完整，反查執行身分即驗證身分，不可只解碼或只查id，並自行決定空身分是否放行，另須檢查clientId歸屬該身分)；應用端自行註冊之其他execute監聽(各函數)與資料授權各自把關，含函數層級之角色或成員檢查。
+ *
  * @class
  * @param {Object} instWConverServer 輸入通訊服務實體物件，須為具emit、on、off函數之eventemitter3事件物件(例如wsemi之evem所建立者)，可使用例如WConverhpServer等建立；有物件而缺emit、on或off時於建構時拋錯，且不留下任何計時器與監聽；未給或非有效物件時改以evem建立不連線之事件物件(並印出提示)，可由emit('execute', func, input, pm)手動驅動。同一事件物件只能建立一個本伺服器，重建前須先呼叫clearBroadcast
  * @param {Object} [opt={}] 輸入設定物件，預設{}
- * @returns {Object} 回傳事件物件，可監聽clientEnter、clientLeave、clientChange、error事件，並保留instWConverServer原有之execute、upload、download、handler事件；另掛載broadcast、getClients、getMessages、clearBroadcast函數。本套件只處理函數名為[sys:polling]之execute，其他函數名須由應用端自行註冊execute監聽並回應，否則該請求懸置至前端逾時；本套件之execute監聽須先於「對所有函數名皆回應」之監聽註冊，否則輪詢由該監聽回應。輪詢之clientId須為非空字串，任意字串(含__proto__、constructor、含.或[]者)皆為一般識別，回覆一律為陣列；clientId不是非空字串者拒絕該次輪詢([sys:polling] invalid clientId)，不發事件、不建立在線身分。clientEnter與clientLeave帶(clientId, data)，clientEnter之data為該客戶端首次輪詢時所送之輸入物件，clientLeave之data為其最後一次輪詢時所送者；clientChange帶當前存活客戶端數量(含剛輪詢而尚未發出clientEnter者)。broadcast以呼叫當下之值(複製)廣播給當前在線之客戶端，data須可序列化(同通訊服務之規則)，否則同批廣播於輪詢時遺失。在線逾時固定10秒，傳遞為至多一次：客戶端兩次成功輪詢之間隔達10秒時視為離線並丟棄其未取走之廣播，回覆送不到(例如不可序列化之data、傳輸失敗)時同批之廣播遺失。clearBroadcast為停止並釋放：清除本套件之計時器與在線偵測(行程可立即結束)、移除所掛之execute監聽(其後不再回應輪詢，含於同一次execute派發中先註冊之監聽內停止者；停止後之輪詢由同一事件物件上其他execute監聽回應，無其他監聽時由通訊服務立即拒絕，另有不回應[sys:polling]之監聽時懸置至前端逾時)，並對已送達clientEnter而尚未送達clientLeave之客戶端補發clientLeave與clientChange使進出成對；停止前已排定而尚未送達之事件不再派發，補發之後不再派發本套件之事件，惟呼叫當下那次派發之其餘監聽器仍會收到；停止後之監聽器拋錯(含補發事件之監聽器)以console.error輸出；停止後broadcast無作用、getClients回傳[]、getMessages回傳{}，可重複呼叫。getMessages回傳以clientId為鍵之一般物件(複製)。error事件之內容一律為{ msg, err }，msg為描述字串、err為原因(原始錯誤或出錯之值)：輪詢處理失敗為{ msg: '[sys:polling] error', err }；本套件之error於派發當下無error監聽者時改以console.error輸出；監聽器之同步拋錯不會使行程崩潰，改以error事件通知，內容為{ msg: 'listener of event[x] error', err }(x為事件名、err為所拋之值)，無error監聽者時改以console.error輸出；error監聽器自身拋錯亦以console.error輸出。惟依EventEmitter規範，同一次派發中先拋錯之監聽器會中止該次派發，其後之監聽器不再被呼叫；async監聽器之reject不被攔截，須由監聽器自行處理
+ * @param {Function} [opt.verifyPolling=null] 輸入輪詢之身分驗證鉤子函數(sync或async皆可)，由使用端注入，預設null(不驗證，行為同未提供本選項時：本套件不驗證身分，任何能通過通訊層者皆可輪詢，風險見上方「身分驗證責任」)。給予函數時，每次[sys:polling]於任何副作用(建立佇列、建立或刷新在線身分、取出訊息、發出clientEnter等事件)之前呼叫，傳入該次輪詢之輸入物件之複本(含clientId、前端opt.getToken放於固定鍵__sysToken__之token，及使用端自行放入之其他欄位)；回傳(或resolve，thenable亦以Promise規則吸收)嚴格true才放行，其他值(含看似為真之值，例如1、'user-1'、{})、拋錯或reject一律拒絕：以固定訊息'[sys:polling] permission denied'拒絕該次輪詢(訊息不含拒絕原因，原因只經error事件供稽核)，不建立或刷新任何狀態(已在線者之佇列亦不取出)，並發error事件(內容見回傳之說明)。放行後交給使用端監聽之clientEnter、clientLeave之data已剝除固定鍵__sysToken__，使token不進入事件資料(未提供verifyPolling時輸入原物件交付，不剝除任何鍵)；提供verifyPolling時，clientId、傳給鉤子之輸入與交給使用端之data皆取自輪詢到達當下之同一份快照(深複製)，驗證期間原輸入物件被他人改動(例如同一事件物件上其他execute監聽共用同一輸入)不影響檢查之值與使用之值；提供verifyPolling時，輪詢之回覆(含拒絕)於鉤子結算後非同步送出(未提供時同現行，同步回覆)，故同一事件物件上於本套件之後註冊、且對[sys:polling]同步回應之監聽(例如對所有函數名皆回應invalid token之資料通道)會先結算該請求而使輪詢失敗，此類監聽須略過[sys:polling](不回應)。鉤子須自行驗證token是否有效、使用者是否存在且啟用、部署方是否授權，並檢查clientId歸屬該身分(clientId由前端自訂，須唯一，否則與他人互相取走訊息)。clientId不是非空字串者先於鉤子被拒絕([sys:polling] invalid clientId)，不呼叫鉤子；本套件不內建鉤子逾時，鉤子不結算時該次輪詢懸置至前端逾時，須由鉤子自行處理逾時；clearBroadcast時在途之驗證於其結算後不建立任何狀態、不發任何事件、不回應。給了非函數(undefined與null除外)時建構拋錯(opt.verifyPolling is not a function)，不靜默放行
+ * @returns {Object} 回傳事件物件，可監聽clientEnter、clientLeave、clientChange、error事件，並保留instWConverServer原有之execute、upload、download、handler事件；另掛載broadcast、getClients、getMessages、clearBroadcast函數。本套件只處理函數名為[sys:polling]之execute，其他函數名須由應用端自行註冊execute監聽並回應，否則該請求懸置至前端逾時；本套件之execute監聽須先於「對所有函數名皆回應」之監聽註冊，否則輪詢由該監聽回應。輪詢之clientId須為非空字串，任意字串(含__proto__、constructor、含.或[]者)皆為一般識別，回覆一律為陣列；clientId不是非空字串者拒絕該次輪詢([sys:polling] invalid clientId)，不發事件、不建立在線身分。clientEnter與clientLeave帶(clientId, data)，clientEnter之data為該客戶端首次輪詢時所送之輸入物件，clientLeave之data為其最後一次輪詢時所送者(注入opt.verifyPolling時，兩者皆已剝除token鍵__sysToken__)；clientChange帶當前存活客戶端數量(含剛輪詢而尚未發出clientEnter者)。broadcast以呼叫當下之值(複製)廣播給當前在線之客戶端，data須可序列化(同通訊服務之規則)，否則同批廣播於輪詢時遺失。在線逾時固定10秒，傳遞為至多一次：客戶端兩次成功輪詢之間隔達10秒時視為離線並丟棄其未取走之廣播，回覆送不到(例如不可序列化之data、傳輸失敗)時同批之廣播遺失。clearBroadcast為停止並釋放：清除本套件之計時器與在線偵測(行程可立即結束)、移除所掛之execute監聽(其後不再回應輪詢，含於同一次execute派發中先註冊之監聽內停止者；停止後之輪詢由同一事件物件上其他execute監聽回應，無其他監聽時由通訊服務立即拒絕，另有不回應[sys:polling]之監聽時懸置至前端逾時)，並對已送達clientEnter而尚未送達clientLeave之客戶端補發clientLeave與clientChange使進出成對；停止前已排定而尚未送達之事件不再派發，補發之後不再派發本套件之事件，惟呼叫當下那次派發之其餘監聽器仍會收到；停止後之監聽器拋錯(含補發事件之監聽器)以console.error輸出；停止後broadcast無作用、getClients回傳[]、getMessages回傳{}，可重複呼叫。getMessages回傳以clientId為鍵之一般物件(複製)。error事件之內容一律為{ msg, err }，msg為描述字串、err為原因(原始錯誤或出錯之值)：輪詢處理失敗為{ msg: '[sys:polling] error', err }；注入opt.verifyPolling時，鉤子回傳非true而拒絕為{ msg: '[sys:polling] permission denied', err }(err為鉤子之回傳值)，鉤子本身拋錯或reject而拒絕為{ msg: '[sys:polling] verifyPolling error', err }(err為所拋之值)，每次被拒絕各發一則(遠端大量輪詢時，error事件之數量同被拒絕之輪詢數)；本套件之error於派發當下無error監聽者時改以console.error輸出；監聽器之同步拋錯不會使行程崩潰，改以error事件通知，內容為{ msg: 'listener of event[x] error', err }(x為事件名、err為所拋之值)，無error監聽者時改以console.error輸出；error監聽器自身拋錯亦以console.error輸出。惟依EventEmitter規範，同一次派發中先拋錯之監聽器會中止該次派發，其後之監聽器不再被呼叫；async監聽器之reject不被攔截，須由監聽器自行處理
  * @example
  *
  * import WConverhpServer from 'w-converhp/src/WConverhpServer.mjs'
@@ -34,7 +38,13 @@ import genEeEmit from './genEeEmit.mjs'
  * //instWConverServer
  * let instWConverServer = new WConverhpServer(opt)
  *
- * //instWConverServer
+ * //instWConverServer, 未提供verifyPolling時任何能通過verifyConn者皆可輪詢; 驗證輪詢之身分須注入verifyPolling(嚴格回傳true才放行), 前端以getToken放入token:
+ * //instWConverServer = new WServBroadcastServer(instWConverServer, {
+ * //    verifyPolling: async (input) => {
+ * //        let userId = await getUserIdByToken(input.__sysToken__) //使用端自行完整驗證token, 並檢查input.clientId歸屬該身分
+ * //        return userId !== ''
+ * //    },
+ * //})
  * instWConverServer = new WServBroadcastServer(instWConverServer)
  *
  * let n = 0
@@ -71,6 +81,16 @@ function WServBroadcastServer(instWConverServer, opt = {}) {
     //why: 原只檢查emit, 缺on者先建立計時器才拋錯而殘留, 缺off者於停止時才拋錯而釋放不完全
     if (!haskey(instWConverServer, 'emit') || !isfun(instWConverServer.on) || !isfun(instWConverServer.off)) {
         throw new Error(`instWConverServer is not an EventEmitter`)
+    }
+
+    //verifyPolling, 使用端注入之輪詢身分驗證鉤子, 未給(undefined或null)時不驗證(行為同現行); 於指派屬性、註冊監聽、建立計時器之前檢查
+    //why 給了非函數者拋錯: 使用端以為已驗證而實際靜默放行, 與預設拒絕之原則相反(誤設須立即可見)
+    let verifyPolling = get(opt, 'verifyPolling')
+    if (verifyPolling === undefined || verifyPolling === null) {
+        verifyPolling = null
+    }
+    else if (!isfun(verifyPolling)) {
+        throw new Error(`opt.verifyPolling is not a function`)
     }
 
     //broadcastMessages, 以clientId為鍵之訊息佇列
@@ -114,6 +134,50 @@ function WServBroadcastServer(instWConverServer, opt = {}) {
         eeEmit('clientChange', now)
     })
 
+    //msgDenied, 拒絕輪詢時回前端之固定訊息, 不隨拒絕原因而異(原因只經error事件供稽核)
+    //msgVerifyErr, 鉤子本身拋錯或reject時之error事件訊息, 以與鉤子明確回傳非true者區分
+    let msgDenied = '[sys:polling] permission denied'
+    let msgVerifyErr = '[sys:polling] verifyPolling error'
+
+    //verify, 呼叫使用端之verifyPolling, 回傳promise且永不reject: { pass: true }或{ pass: false, msg, err }
+    //傳入輸入之複本(鉤子之改動不影響後續所用之輸入); 嚴格true才放行, 其他值、拋錯(同步或非同步)皆拒絕
+    //executor同步執行, 故鉤子於onExecute內即被呼叫(早於任何副作用)
+    let verify = (input) => {
+        return new Promise((resolve) => {
+            resolve(verifyPolling(cloneDeep(input)))
+        })
+            .then((v) => {
+                if (v === true) {
+                    return { pass: true }
+                }
+                return { pass: false, msg: msgDenied, err: v }
+            }, (err) => {
+                return { pass: false, msg: msgVerifyErr, err }
+            })
+    }
+
+    //poll, 輪詢之全部副作用(取出訊息、建立佇列、建立或刷新在線身分、回覆)皆在此; 注入verifyPolling時須於驗證放行之後才呼叫
+    //data為交給在線偵測之輸入(即clientEnter、clientLeave之data)
+    let poll = (clientId, data, pm) => {
+
+        //polling messages, 訊息已於broadcast時複製, 取出後清空
+        let pms = broadcastMessages.get(clientId) || []
+        broadcastMessages.set(clientId, [])
+
+        //trigger
+        ea.trigger(clientId, data)
+
+        //resolve
+        pm.resolve(pms)
+
+    }
+
+    //failPoll, 輪詢處理失敗之單一出口
+    let failPoll = (err, pm) => {
+        eeEmit('error', { msg: '[sys:polling] error', err })
+        pm.reject('[sys:polling] error')
+    }
+
     //onExecute, 具名以供clearBroadcast移除
     let onExecute = function(func, input, pm) {
 
@@ -130,29 +194,66 @@ function WServBroadcastServer(instWConverServer, opt = {}) {
         // console.log(`execute: [sys:polling]`, input)
         try {
 
+            //snap, 已提供verifyPolling時先取輸入之快照(深複製, 保留循環參照), 此後的clientId、傳給鉤子之輸入與交使用端之data皆取自快照, 不再讀原輸入物件
+            //why: 檢查之值須即使用之值; 驗證期間同一input物件(同一事件物件上各execute監聽共用)可能被其他監聽器改動, 或其屬性為getter而每次讀取不同
+            //未提供verifyPolling者仍取原輸入(行為同現行, 輸入原物件交付)
+            let snap = input
+            if (verifyPolling !== null) {
+                snap = cloneDeep(input)
+            }
+
             //clientId, 須為非空字串; 不合者只拒絕, 不發事件(避免遠端灌爆error)、不寫入佇列、不交給在線偵測
-            let clientId = get(input, 'clientId')
+            let clientId = get(snap, 'clientId')
             // console.log('clientId', clientId)
             if (!isestr(clientId)) {
                 pm.reject('[sys:polling] invalid clientId')
                 return
             }
 
-            //polling messages, 訊息已於broadcast時複製, 取出後清空
-            let pms = broadcastMessages.get(clientId) || []
-            broadcastMessages.set(clientId, [])
+            //未提供verifyPolling, 同步處理(行為同現行)
+            if (verifyPolling === null) {
+                poll(clientId, input, pm)
+                return
+            }
 
-            //trigger
-            ea.trigger(clientId, input)
+            //已提供verifyPolling, 驗證放行之後才有任何副作用(建立佇列、在線身分、取出訊息)
+            verify(snap)
+                .then((r) => {
 
-            //resolve
-            pm.resolve(pms)
+                    //check, 驗證期間已停止者不處理: 不建立任何狀態、不發任何事件、不回應(同停止後才到之輪詢)
+                    if (cleared) {
+                        return
+                    }
+
+                    //拒絕: 固定訊息回前端(不洩漏原因), 原因只經error事件供稽核; 不建立任何狀態
+                    if (!r.pass) {
+                        eeEmit('error', { msg: r.msg, err: r.err })
+                        pm.reject(msgDenied)
+                        return
+                    }
+
+                    //放行: 於快照上剝除token後交使用端(clientEnter等); 快照為本實體私有, 直接刪除其鍵, 故巢狀或循環參照所指亦為已剝除者
+                    delete snap[pollingTokenKey]
+                    poll(clientId, snap, pm)
+
+                })
+                .catch((err) => {
+                    //放行後之處理或回覆失敗: 未停止者以輪詢處理失敗通知並拒絕該次輪詢(使請求不懸置); 回覆本身再拋錯者只通知, 以免成為未處理的rejection而使行程崩潰
+                    if (cleared) {
+                        return
+                    }
+                    try {
+                        failPoll(err, pm)
+                    }
+                    catch (err2) {
+                        eeEmit('error', { msg: '[sys:polling] error', err: err2 })
+                    }
+                })
 
         }
         catch (err) {
             // console.log('[sys:polling] error', err)
-            eeEmit('error', { msg: '[sys:polling] error', err })
-            pm.reject('[sys:polling] error')
+            failPoll(err, pm)
         }
     }
 
