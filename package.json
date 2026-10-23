@@ -1,6 +1,6 @@
 {
   "name": "w-serv-broadcast",
-  "version": "1.1.11",
+  "version": "1.1.12",
   "main": "dist/w-serv-broadcast-server.umd.js",
   "dependencies": {
     "wsemi": "^1.9.21"

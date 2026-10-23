@@ -2,7 +2,7 @@
 
 本檔為套件設計與開發階段之規則帳本,為要求程式碼須長成什麼樣,或由規格產出之測試(項目/說明/流程)有哪些,包含軸、單一擁有者、已知限制、破壞性變更紀錄,以及對應是哪些測試檔案或指令等,由agent自行編列、擴充與維護.
 
-- 建立:2026-10-13(run01 審計,設計階段);更新:2026-10-13(run02 依主控裁決 `C:\opensrcOper\dnow\20261013135951\review\run01-複審.md` 實作);2026-10-13 夜(主控任務 20261013214634 之 run02,依裁決 `C:\opensrcOper\dnow\20261013214634\review\run01-複審.md` 實作 T3:R10、R01 範圍限制、R04、L1、L7、L8);2026-10-23(主控任務 20261023213314 之 broadcast-run01,輪詢身分驗證鉤子:新增 R11、L9–L11,R01–R10 站點行號依此次實作重編).站點行號為最近一次實作後之工作樹(提交前).矩陣格號見 `tmp/輪詢協定與停止-全盤.md`(M1–M12)與 `tmp/run03-中止在途輪詢-全盤.md`(停止時點 S0–S13 × 輸出 O1–O9).
+- 建立:2026-10-13(run01 審計,設計階段);更新:2026-10-13(run02 依主控裁決 `C:\opensrcOper\dnow\20261013135951\review\run01-複審.md` 實作);2026-10-13 夜(主控任務 20261013214634 之 run02,依裁決 `C:\opensrcOper\dnow\20261013214634\review\run01-複審.md` 實作 T3:R10、R01 範圍限制、R04、L1、L7、L8);2026-10-23(主控任務 20261023213314 之 broadcast-run01,輪詢身分驗證鉤子:新增 R11、L9–L11,R01–R10 站點行號依此次實作重編);2026-10-24(同任務之 broadcast-run03:新增 R12 離線時先清佇列再發 clientLeave,R01–R11 之 `Sv:` 行號換算見 R12「站點行號說明」).站點行號為最近一次實作後之工作樹(提交前).矩陣格號見 `tmp/輪詢協定與停止-全盤.md`(M1–M12)與 `tmp/run03-中止在途輪詢-全盤.md`(停止時點 S0–S13 × 輸出 O1–O9).
 - 站點判準三種:已套/未套/刻意不套(附理由).簡稱:`Cl`=`src/WServBroadcastClient.mjs`、`Sv`=`src/WServBroadcastServer.mjs`、`Ge`=`src/genEeEmit.mjs`.
 
 ## 1. 規則
@@ -98,6 +98,16 @@
 - 刻意不套:①(已於 broadcast-run02 改為套用,見規則 4:未注入時亦剝除;相容影響只限含該鍵之輸入,而該鍵只有設了 `getToken` 的新版前端才會送出,自有套件庫內唯一使用端 w-serv-webdata 目前未送該鍵,使用端盤點見 broadcast-run01 報告).②鉤子逾時——需求未要求,JSDoc 載明使用端自理(L9).③拒絕限流——error 事件數量等於被拒輪詢數(審計 4.8「限流不在本輪」),JSDoc 載明.④鉤子回傳身分物件——需求為 boolean,身分紀錄由使用端自行處理.⑤clientId 歸屬檢查——由鉤子負責(JSDoc 載明,輸入已含 clientId).
 - 測試:`test/unit-server-verify-polling.test.mjs`(31 案:放行 8〔sync/async/thenable、token 不出現、鉤子收複本、他監聽改動輸入、getter、循環參照、放行後不再讀原輸入、鉤子傳入內容〕、拒絕 9〔值矩陣 16 值×sync/async、拋錯與 reject、thenable/字串 reject、回覆拋錯、同 ID 交錯、已在線者被拒、大量被拒、無 error 監聽者、併發〕、呼叫時點與範圍 3、停止 3、在線期限〔真實時間約 12 秒〕1、建構與相容 7〔非函數拋錯;未提供鉤子且輸入不含 `__sysToken__`〔原物件交付、同步回應〕;未提供且含該鍵〔值 token/''/null/123 皆剝除、副本、原物件不動、補發 clientLeave 無該鍵〕;未提供且含該鍵+循環參照;未提供且含該鍵+clientId 不合;L12 釘選;重建〕)、`test/unit-client-get-token.test.mjs`(11 案)、`test/api-broadcast-verify-polling.test.mjs`(4 案,真 w-converhp,埠 8098;含「伺服端未提供鉤子而前端有 getToken」).變異驗證 22 點(21 點為真變異、全部被抓到,含「拿掉鉤子呼叫」S-M1、「鉤子移到副作用之後」S-M2;1 點為等價變異對照,存活如預期;於 41 條時跑,其後僅增 L12 釘選 1 條);修前(HEAD 之 src)跑同一批 41 條測試 35 條紅、6 條相容/設計釘選綠;腳本與結果見 broadcast-run01 報告之證據夾.broadcast-run02(未提供鉤子時一律剝除):對 run01 定稿之 src 跑 run02 之測試檔(35 條)3 條紅(未提供+含鍵、未提供+含鍵+循環參照、API 版本錯置)、32 條綠(含「不含鍵者原物件交付、同步回應」釘選);伺服端變異 15 點——新增 N-M1(未提供時不剝除)、N-M2(就地改動原物件)、N-M3(不含鍵亦取副本)、N-M4(以值之真偽判斷)、N-M5(淺拷貝)、N-M6(含鍵仍交原物件),及沿用 S-M1/2/3/4/5/8/11/13,14 點真變異全被抓到,S-M12 等價變異存活如預期;證據見 broadcast-run02 報告之證據夾.
 
+### R12 離線時先清除該 clientId 之佇列,才發出 clientLeave/clientChange(2026-10-24 broadcast-run03)
+
+- 起因:w-serv-webdata 於 `clientLeave` 解除 clientId 與身分之綁定;修前離線(在線逾時)時 `clientLeave` 先發出、佇列由 1 秒修剪計時器於最多 1 秒後才刪,期間他人以同一 clientId 重新綁定並輪詢即取得離線者遺留之廣播(`broadcast` 於離線後、修剪前亦仍推入該佇列).
+- 規則:凡使 clientId 離開之路徑,**先**刪除該 clientId 之佇列與訊息,**後**發出 `clientLeave`/`clientChange`;故 `clientLeave` 發出時離線前之廣播已不在任何佇列(`getMessages()` 無該離線前之佇列),其後(含於 `clientLeave` 監聽內)以同一 clientId 輪詢者由 `poll()` 建立新的空佇列,離線後、重新輪詢前之 `broadcast` 亦不進入舊佇列.離線前未取走之廣播即丟棄(至多一次,L3 不變).**精確保證的是「離線偵測當下」而非「clientLeave 派發當下」**:事件經 `Ge` 脫勾約 1ms 派發,若同一 clientId 於此 1ms 內已重新輪詢,`getMessages()` 所見為該次重新進入之新佇列(僅含離線後之廣播);JSDoc 與 README 已載(外審 sol#1 後修正措辭).1 秒修剪計時器保留為保底(計時器數量與停止語意不變).
+- 離開路徑全集(盤點:`grep -n "eeEmit('clientLeave'\|eeEmit.final('clientLeave'\|broadcastMessages" src/*.mjs`):①在線逾時——`ea` 之 `leave` 訊息,`Sv:130` 先 `broadcastMessages.delete(key)`,`Sv:136` 才 `eeEmit('clientLeave')`、`:138` `eeEmit('clientChange')`(已套);②停止補發——`clearBroadcast` 內 `Sv:312` 先 `broadcastMessages = new Map()`,`:320`、`:321` 才 `eeEmit.final`(已套);③前端停止/關閉分頁——伺服端無訊號,歸①;④同一 clientId 離線後再輪詢——視為新進入(`poll()` 建新佇列、`ea.trigger` 再發 clientEnter),不屬離開路徑;⑤`verifyPolling` 在途時離線——放行後之 `poll()` 於放行時才取用佇列,同④(得新空佇列;已由測試「驗證在途跨離線」釘選);風險見 L13.前端無離開事件(T1).停止補發之 `clientLeave` 發出時佇列同樣已清空,但停止為終態,不適用「其後輪詢得新空佇列」(外審 sol#5 後修正文件措辭).
+- 順序之可觀察性:本套件事件經 `Ge` 以 1ms timer 脫勾派發,故「同步段內先刪後 `eeEmit`」與「同步段內先 `eeEmit` 後刪」不可區分(等價變異,測試不抓);**可抓的是**「刪除晚於派發」(修前行為、延後 timer 刪除).程式採「先刪後 `eeEmit`」使順序不依賴脫勾時間.
+- 不涵蓋:clientId 之歸屬檢查(由 `verifyPolling` 負責,R11-⑤);離線期間使用端自行持有之資料.
+- 站點行號說明:本輪於 `Sv:127-130` 新增 4 行、`clearBroadcast` 內 `let latest` 前新增 3 行並於函式尾移除 3 行,故 R01–R11 所載 `Sv:` 行號,原 ≥129 者 +4、原 ≥307 且 ≤320 者 +7(以 `grep -n` 重定位為準;R12 所載為本輪後行號).
+- 測試:`test/unit-server-leave-queue.test.mjs`(14 案:在線逾時離線〔真實時間約 13 秒;未注入/注入 verifyPolling 各 6 案:離線者與持續輪詢者、clientLeave 監聽內探測+輪詢、監聽返回後(setImmediate)探測+輪詢、離線後 100ms 廣播再輪詢(d:離線後、重新輪詢前之廣播不進舊佇列)、離線後重新輪詢之新佇列與廣播、持續輪詢者依序收全部廣播〕12;注入組另 1 案:驗證在途跨離線(e);停止補發 1;停止案以 waitFor 等 clientEnter/補發,不用固定 delay).首次輪詢前延後 500ms,使離線時點(約 10.5 秒)落在 1 秒修剪計時器兩次之中間,修前行為才穩定重現(未延後時修前行為 6 次中有 2 次未完整重現,其中 1 次整份誤綠).變異驗證 6 點(對 14 案終版):M1 不刪(=修前)連 3 次皆 7 條紅(a、c、d 各 2 組 + e)、M2 延後 20ms 刪 7 條紅、M4 清全部 4 條紅、M6 停止路徑延後清 1 條紅,皆被抓到;M3 同步段內事件後刪、M5 停止路徑清空移回原位為等價變異,存活如預期(14/14 綠);現行碼新測試連跑 2 次 14/14,全套連跑 3 次皆 145 passing;證據見 broadcast-run03 報告.
+
 ## 2. 已知限制(刻意不修或範圍外)
 
 - L1 停止時有輪詢在途而通訊物件不支援 opt.signal(WConverhpClient ≤ 2.1.7、或包裝 execute 而只轉交 3 個參數者):該請求照常完成或重試並發其自身 error,行程待其結束;本套件只丟棄其結果(R01;已載 JSDoc).生產堆疊之通訊物件由 w-serv-hapi 建立,其升至 w-converhp ≥ 2.1.8 後 R10 才在生產堆疊生效.(原載「通訊物件仍重試並發其自身 error,本套件無法中止(execute 無中止介面;裁決 Q8)」,2026-10-13 依 w-converhp 2.1.8 改寫,見 R10.)
@@ -110,6 +120,7 @@
 - L8 伺服端停止後對端之輪詢:同一事件物件上無其他 execute 監聽者,由通訊服務立即拒絕(no listener);另有不回應 `[sys:polling]` 之監聽者,懸置至前端每次嘗試之逾時(w-converhp 刻意不代為終結,`node_modules/w-converhp/src/WConverhpServer.mjs:608-625`).只文件化於 `Sv:23`(裁決 Q6;不重提 K8).
 - L9 鉤子(opt.verifyPolling)不內建逾時:鉤子永不結算時,該次輪詢之 pm 與閉包懸置至前端逾時(伺服端無釋放點);鉤子在途時伺服端停止,該請求照鉤子結算後靜默、不回應(同停止後才到之輪詢,L8),懸置至前端逾時或前端自身中止.逾時須由鉤子自行處理(R11,JSDoc 已載).
 - L10 拒絕不限流:每次被拒絕發一則 error 事件,匿名者可使 error 事件數量等於其輪詢數(量級同通訊層 verifyConn 拒絕之路徑);限流不在本套件(審計 webdata-inv01 4.8).
+- L13 鉤子(opt.verifyPolling)結算慢於在線逾時(10 秒)時,其放行結果於結算時才生效、取用當時之佇列:A 之輪詢驗證在途期間 A 離線、`clientLeave` 解除綁定、B 重用同一 clientId 並累積佇列,舊驗證其後 resolve(true) 則 A 之該次輪詢取走 B 之佇列(外審 sol#2;屬 L9 不內建逾時之既有後果,需鉤子慢逾 10 秒且恰有重新綁定,R12 不處理).JSDoc 與 README 已載;要根除須讓每次驗證綁定在線代次(日後另案,需主控裁示,涉及鉤子行為故本輪不動).
 - L12 提供 verifyPolling 時輪詢之回覆為非同步(鉤子結算後),同一事件物件上於本套件之後註冊、且對 `[sys:polling]` **同步**回應之監聽(例如 w-serv-webdata 資料通道之 `execFun`:無 `__sysToken__` 回 `invalid token`、有 token 而無 `__sysInputArgs__` 回 `invalid input`,見 `w-serv-webdata/src/WServWebdataServerExec.mjs:264-285`)會先結算該請求,輪詢失敗(前端每輪發 error);未提供鉤子時本套件同步先結算,僅註冊順序決定(R09).已由 `test/unit-server-verify-polling.test.mjs`「與其後註冊且對[sys:polling]同步回應之監聽並存時」釘選,JSDoc(`Sv:22`)與 README Upgrade Notes 已載.**改 w-serv-webdata 時須讓其資料通道略過 `[sys:polling]`(不回應)**——本輪不改該套件.
 - L11 未注入 opt.verifyPolling 時任何能通過通訊層者皆可輪詢(預設為放行,JSDoc「身分驗證責任」與 README 已載);前端 opt.getToken 之 token 隨每次輪詢明文送出,傳輸安全由使用端與通訊層負責.
 
@@ -124,6 +135,7 @@
 - (run02 實作,已發布 1.1.8,提交 `c298f91`)不合協定之輪詢回應不再發 openOnce/open,改每輪 error;停止後不再收到本套件之事件(含已排定與在途結果;伺服端補發以已送達 clientEnter 為準);非字串 clientId 之輪詢被拒;伺服端傳入缺 on/off、前端傳入缺 on 之物件於建構時拋錯;timePolling 為 0 時取預設 2000、超過上限者夾至上限;本套件自發之 error 無監聽者時改 console.error;broadcast 以呼叫當下之值廣播.
 - (broadcast-run01,主控任務 20261023213314,待發布,版號由主控決定;相容)新增伺服端 `opt.verifyPolling`、前端 `opt.getToken` 兩個選項(皆可省略;省略時行為與 1.1.10 相同,惟輸入含 `__sysToken__` 者見下 broadcast-run02 條).注入 verifyPolling 後:①鉤子回非 true 者(例如未帶/帶錯 token,由鉤子決定)之輪詢被拒(`[sys:polling] permission denied`),前端每輪發 error、不 open;②鉤子要求 token 時需前端同時提供 getToken(部署順序:先升伺服端並注入、再升前端;舊前端被拒至重新整理);③clientEnter/clientLeave 之 data 不含 `__sysToken__`;④給了非函數之 verifyPolling/getToken 於建構時拋錯.內部新增 `src/pollingTokenKey.mjs`.
 - (broadcast-run02,主控任務 20261023213314,待發布,與 run01 同批;主控 2026-10-24 裁定)**未提供 verifyPolling 時亦剝除輪詢輸入中的 `__sysToken__`**(取代 run01「僅注入時剝」):輸入含自有鍵 `__sysToken__` 者,clientEnter、clientLeave、getClients 之 data 為去鍵副本,呼叫端原物件不動;不含該鍵者行為與修前完全相同(原物件交付、同步回應).可見差異只限含該鍵之輸入,而該鍵只有設了 `getToken` 之新版前端才會送出(自有套件庫內使用端 w-serv-webdata 目前未送).
+- (broadcast-run03,主控任務 20261023213314,待發布,版號由主控決定;相容)**離線時先清除該 clientId 之佇列,才發出 clientLeave/clientChange**(R12):修前佇列由 1 秒修剪計時器於離線後最多 1 秒才刪,期間以同一 clientId 輪詢者(例如在 clientLeave 內解除 clientId 與身分綁定後、他人重新綁定同一 clientId)會取得離線者遺留之廣播.可見差異只有:clientLeave 發出時 `getMessages()` 已無該鍵;離線後、重新輪詢前之 `broadcast` 不再進入該 clientId 之舊佇列;其後以同一 clientId 輪詢者得新空佇列.事件名、順序(clientLeave 先於 clientChange)、payload 與在線偵測(10 秒)皆不變.
 - (主控任務 20261013214634 之 run02 實作,待發布,預期 1.1.9)前端:①建構時要求執行環境內建 AbortController,缺者拋 `AbortController is not available`(Node 14.17 以前、Chrome 65 以前等;裁決 Q1);②輪詢之 execute 多帶第 4 參數 `{ signal }`——自訂通訊物件之第 4 參數另有語意者受影響,包裝 execute 者須原樣轉交;③clearBroadcast 中止在途之輪詢請求——通訊物件支援 opt.signal 時,停止後不再有該請求之重試、error、重試訊息與 getToken 呼叫,伺服端於驗證中被中斷時記一則其自身之 error(L7).API 不變.版號由主控決定.
 
 ## 5. 測試對照
@@ -144,7 +156,8 @@
 | `test/unit-server-verify-polling.test.mjs` | unit(含 1 案真實時間約 12 秒) | R11(伺服端 verifyPolling 與一律剝除 token)、R04(建構)、R07(停止) | 31 |
 | `test/unit-client-get-token.test.mjs` | unit | R11(前端 getToken)、R04、R06、R10(signal) | 11 |
 | `test/api-broadcast-verify-polling.test.mjs` | api(真 w-converhp,埠 8098,各案循序) | R11 端到端(含伺服端未提供鉤子而前端有 getToken) | 4 |
+| `test/unit-server-leave-queue.test.mjs` | unit(含真實時間約 13 秒) | R12(離線時先清佇列再發 clientLeave)、R07(停止補發)、R11(注入組:驗證在途跨離線) | 14 |
 | `test/tools/helpers.mjs` | 共用工具(非測試) | — | — |
 | `test/tools/childClientStop.mjs` | 子行程工具(非測試;真 WConverhpClient + 本套件前端,停止後不呼叫 process.exit) | R10 | — |
 
-執行:`npm test`(`mocha --parallel "test/*.test.mjs" --timeout 180000`),2026-10-13 run02 後 73 passing;2026-10-13 夜(主控任務 20261013214634 之 run02)後 85 passing;2026-10-23 broadcast-run01 後 127 passing(85 + 新增 42);2026-10-24 broadcast-run02 後 131 passing(85 + 新增 46);單檔:`npx mocha --no-parallel <檔> --timeout 180000`.
+執行:`npm test`(`mocha --parallel "test/*.test.mjs" --timeout 180000`),2026-10-13 run02 後 73 passing;2026-10-13 夜(主控任務 20261013214634 之 run02)後 85 passing;2026-10-23 broadcast-run01 後 127 passing(85 + 新增 42);2026-10-24 broadcast-run02 後 131 passing(85 + 新增 46);2026-10-24 broadcast-run03 後 145 passing(131 + 新增 14);單檔:`npx mocha --no-parallel <檔> --timeout 180000`.

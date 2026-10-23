@@ -38,7 +38,13 @@ instWConverClient = new WServBroadcastClient(instWConverClient, {
 })
 ```
 
+## Going offline (clientLeave)
+A client is detected as offline when it has not polled successfully for 10 seconds. On detecting it the server **first deletes that `clientId`'s queue and its unretrieved broadcasts, and only then emits `clientLeave` and `clientChange`** (the events are dispatched about 1 ms later). So when `clientLeave` is emitted the broadcasts made before going offline are no longer in any queue (`getMessages()` no longer has the old queue), and anyone who polls with the same `clientId` afterwards (including inside the `clientLeave` listener) gets a new, empty queue and never the broadcasts left behind before going offline; broadcasts made after going offline but before that new poll do not go into the old queue either. It is therefore safe to release the binding between a `clientId` and an identity inside `clientLeave`. Broadcasts that were not retrieved before going offline are discarded (delivery is at most once).
+
+Notes: if the same `clientId` polls again within that ~1 ms between the detection and the dispatch of `clientLeave`, `getMessages()` shows the new queue of that re-entry (it only holds broadcasts made after going offline). With `verifyPolling`, a poll whose verification is still pending when the client goes offline takes its queue when the hook settles (a new, empty queue); the package has no built-in hook timeout, so a hook that settles later than the 10 second online timeout may let a result take effect after the `clientId` has been bound to someone else. When the server is stopped with `clearBroadcast`, the `clientLeave` re-emitted for every client already entered is also emitted after the queues are cleared (a stopped server answers no more polls).
+
 ## Upgrade Notes
+* Going offline (online timeout) now clears the `clientId`'s queue **before** `clientLeave` / `clientChange` are emitted. Previously the queue was removed by a timer up to 1 second later, so a poll with the same `clientId` inside that window (for example another user who just got the `clientId` bound after your `clientLeave` handler released it) received the broadcasts left behind. The events, their payloads and the online detection are unchanged.
 * New server option `verifyPolling` and new client option `getToken` (both optional). **Not providing them keeps the previous behavior** (polling is not verified; for an input without `__sysToken__` the input object is handed to `clientEnter` / `clientLeave` as is, replies stay synchronous). Existing code needs no change, but if polling must be restricted to authenticated users you must inject `verifyPolling` on the server **and** provide `getToken` on the client.
 * Order of deployment: update the server first (with `verifyPolling`), then the clients. A client without `getToken` sends no token, so a `verifyPolling` that requires a valid token denies it (`[sys:polling] permission denied` on every poll, no connection, no broadcast) until its page is reloaded with a version that provides `getToken`; a `verifyPolling` that accepts an empty token lets it through, as you decide.
 * `verifyPolling` / `getToken` given but not a function (other than `undefined` / `null`) makes the constructor throw (`opt.verifyPolling is not a function` / `opt.getToken is not a function`) instead of silently skipping verification.
@@ -195,14 +201,14 @@ setTimeout(() => {
 
 Add script for w-serv-broadcast-client.
 ```alias
-<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.1.11/dist/w-serv-broadcast-client.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.1.12/dist/w-serv-broadcast-client.umd.js"></script>
 ```
 
 #### Example for w-serv-broadcast-client in web:
 > **Link:** [[dev source code](https://github.com/yuda-lyu/w-serv-broadcast/blob/master/web.html)]
 ```alias
 <script src="https://cdn.jsdelivr.net/npm/w-converhp/dist/w-converhp-client.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.1.11/dist/w-serv-broadcast-client.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.1.12/dist/w-serv-broadcast-client.umd.js"></script>
 
 //WConverhpClient
 let WConverhpClient = window['w-converhp-client']
