@@ -43,7 +43,26 @@ A client is detected as offline when it has not polled successfully for 10 secon
 
 Notes: if the same `clientId` polls again within that ~1 ms between the detection and the dispatch of `clientLeave`, `getMessages()` shows the new queue of that re-entry (it only holds broadcasts made after going offline). With `verifyPolling`, a poll whose verification is still pending when the client goes offline takes its queue when the hook settles (a new, empty queue); the package has no built-in hook timeout, so a hook that settles later than the 10 second online timeout may let a result take effect after the `clientId` has been bound to someone else. When the server is stopped with `clearBroadcast`, the `clientLeave` re-emitted for every client already entered is also emitted after the queues are cleared (a stopped server answers no more polls).
 
+## Observation callback (`opt.onTrace`)
+Both `new WServBroadcastServer(inst, { onTrace })` and `new WServBroadcastClient(inst, { onTrace })` accept an optional callback that is called synchronously, at the moment an internal event happens, with one frozen object `{ type, ... }` (all other fields are primitive values; there is never a field named `type` besides the event type). It exists so that tests and diagnostics can synchronize on **events instead of waiting for milliseconds**: the polling timer, the online detection and the 1 ms event dispatch are all driven by timers, and "wait N ms then assert" is unstable under load. The callback is called without a receiver; a throw or a rejected promise it returns is ignored and never affects the package; its return value is not used. When `onTrace` is missing or is not a function nothing is built or called (behavior, timing and cost are the same as before). After `clearBroadcast()` no more events are reported, except the dispatches that were already in progress when it was called and, on the server, the re-emitted `clientLeave` / `clientChange` events.
+
+Client events: `start` (`ms`: polling interval), `tick` (`n`, `skipped`: every timer fire; `skipped` when the previous poll is still in flight), `request` (`n`, `token`: the poll was sent), `result` (`n`, `ok`, `reason` of `'ok'` / `'invalid'` / `'error'`, `msgs` for `'ok'`), `emit` / `deliver` / `report` (see below), `stop` (`inflight`).
+
+Server events: `alive` (`evType` of the underlying online detection: `'enter'` / `'leave'` with `key` and `now`, `'tick'` with `size`, `'stop'`), `prune` (`queues`, `removed`: every 1 s queue pruning), `emit` / `deliver` / `report` (see below), `stop` (`final`: number of clients that get a re-emitted `clientLeave`).
+
+Dispatch events (both sides): `emit` (`name`, `final`: an event was scheduled, dispatched 1 ms later), `deliver` (`name`, `final`, `ok`: all listeners were called, `ok` is false when one threw), `report` (`src` of `'listener'` / `'error'`, `msg`, `via` of `'event'` / `'console'`, and `name` for `'listener'`: the package reported a listener error or an error without an `error` listener). Events dropped by the stop gate are not reported.
+
+```alias
+let events = []
+let cli = new WServBroadcastClient(instWConverClient, {
+    onTrace: (e) => {
+        events.push(e) // e.g. { type: 'result', n: 1, ok: true, reason: 'ok', msgs: 0 }
+    },
+})
+```
+
 ## Upgrade Notes
+* New optional `onTrace` option on both constructors (see above). Not providing it keeps the previous behavior; there are no breaking changes.
 * Going offline (online timeout) now clears the `clientId`'s queue **before** `clientLeave` / `clientChange` are emitted. Previously the queue was removed by a timer up to 1 second later, so a poll with the same `clientId` inside that window (for example another user who just got the `clientId` bound after your `clientLeave` handler released it) received the broadcasts left behind. The events, their payloads and the online detection are unchanged.
 * New server option `verifyPolling` and new client option `getToken` (both optional). **Not providing them keeps the previous behavior** (polling is not verified; for an input without `__sysToken__` the input object is handed to `clientEnter` / `clientLeave` as is, replies stay synchronous). Existing code needs no change, but if polling must be restricted to authenticated users you must inject `verifyPolling` on the server **and** provide `getToken` on the client.
 * Order of deployment: update the server first (with `verifyPolling`), then the clients. A client without `getToken` sends no token, so a `verifyPolling` that requires a valid token denies it (`[sys:polling] permission denied` on every poll, no connection, no broadcast) until its page is reloaded with a version that provides `getToken`; a `verifyPolling` that accepts an empty token lets it through, as you decide.
@@ -201,14 +220,14 @@ setTimeout(() => {
 
 Add script for w-serv-broadcast-client.
 ```alias
-<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.1.13/dist/w-serv-broadcast-client.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.1.14/dist/w-serv-broadcast-client.umd.js"></script>
 ```
 
 #### Example for w-serv-broadcast-client in web:
 > **Link:** [[dev source code](https://github.com/yuda-lyu/w-serv-broadcast/blob/master/web.html)]
 ```alias
 <script src="https://cdn.jsdelivr.net/npm/w-converhp/dist/w-converhp-client.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.1.13/dist/w-serv-broadcast-client.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.1.14/dist/w-serv-broadcast-client.umd.js"></script>
 
 //WConverhpClient
 let WConverhpClient = window['w-converhp-client']

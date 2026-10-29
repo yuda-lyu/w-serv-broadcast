@@ -2,6 +2,7 @@ import assert from 'assert'
 import evem from 'wsemi/src/evem.mjs'
 import WServBroadcastClient from '../src/WServBroadcastClient.mjs'
 import { waitFor, countTimeout, genConnector, recordClient } from './tools/helpers.mjs'
+import { genTracer } from './tools/tracer.mjs'
 
 
 //本檔對應之契約: 前端之通訊物件須為具execute函數之事件物件(例如WConverhpClient); 未給、非事件物件、或無execute函數者永遠無法輪詢, 於建構時即拋錯
@@ -44,14 +45,17 @@ describe('client construct', function() {
     it('通訊物件有效時建構成功並開始輪詢', async function() {
         let ev = evem()
         ev.execute = () => Promise.resolve([])
-        let cli = WServBroadcastClient(ev, { timePolling: 50 })
+        let tr = genTracer()
+        let cli = WServBroadcastClient(ev, { timePolling: 50, onTrace: tr.onTrace })
         let opened = false
         cli.on('open', () => {
             opened = true
         })
-        await delay(200)
+        await tr.wait({ type: 'deliver', name: 'open' }) //待open送達(以事件而非固定時窗)
         cli.clearBroadcast()
         assert.strict.equal(opened, true) //契約: 有效之通訊物件照常輪詢
+        assert.deepStrictEqual(tr.of({ type: 'start' }).map((e) => e.ms), [50]) //契約: 以timePolling為輪詢間隔
+        assert.strict.equal(tr.of({ type: 'result' })[0].reason, 'ok') //契約: 首輪為合格回應
     })
 
     it('通訊物件缺on時建構即拋錯', function() {
@@ -63,10 +67,11 @@ describe('client construct', function() {
 
     it('timePolling為0、負數、非整數或無效值時取預設2000', async function() {
         for (let timePolling of [0, -1, 1.5, 'abc', null]) {
-            let cli = WServBroadcastClient(genConnector(() => Promise.resolve([])), { timePolling })
-            await delay(150)
+            let tr = genTracer()
+            let cli = WServBroadcastClient(genConnector(() => Promise.resolve([])), { timePolling, onTrace: tr.onTrace })
             cli.clearBroadcast()
-            assert.strict.equal(cli.nExec, 0, `timePolling=${timePolling}`) //契約: 0與無效值取預設2000(150ms內不輪詢)
+            assert.deepStrictEqual(tr.of({ type: 'start' }).map((e) => e.ms), [2000], `timePolling=${timePolling}`) //契約: 0與無效值取預設2000
+            assert.strict.equal(cli.nExec, 0, `timePolling=${timePolling}`) //契約: 建構當下不輪詢(首輪於一個間隔後)
         }
     })
 
@@ -77,10 +82,12 @@ describe('client construct', function() {
         }
         process.on('warning', onWarning)
         try {
-            let cli = WServBroadcastClient(genConnector(() => Promise.resolve([])), { timePolling: 3000000000 })
-            await delay(150)
+            let tr = genTracer()
+            let cli = WServBroadcastClient(genConnector(() => Promise.resolve([])), { timePolling: 3000000000, onTrace: tr.onTrace })
             cli.clearBroadcast()
-            assert.strict.equal(cli.nExec, 0) //契約: 超過計時器上限者夾至上限(不會因溢位改為1ms而密集輪詢)
+            assert.deepStrictEqual(tr.of({ type: 'start' }).map((e) => e.ms), [2147483647]) //契約: 超過計時器上限者夾至上限(不會因溢位改為1ms而密集輪詢)
+            assert.strict.equal(cli.nExec, 0)
+            await new Promise((resolve) => setImmediate(resolve)) //警告於process.nextTick送達, 先於setImmediate
         }
         finally {
             process.off('warning', onWarning)

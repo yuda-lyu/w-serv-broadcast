@@ -1,3 +1,4 @@
+import { mock } from 'node:test'
 import evem from 'wsemi/src/evem.mjs'
 
 
@@ -6,6 +7,15 @@ import evem from 'wsemi/src/evem.mjs'
 
 //delay
 let delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+
+//advance, 以假時鐘(mock.timers, 須已enable)逐毫秒推進ms毫秒
+//why: mock.timers.tick(n)一次推進n毫秒時, 時鐘先跳至終點, 其間新排定之計時器(如事件派發之1ms脫勾)排在終點之後而不執行, 且回呼內之Date.now()皆為終點值; 逐毫秒推進才與真實時間下之連鎖計時器一致
+let advance = (ms) => {
+    for (let i = 0; i < ms; i++) {
+        mock.timers.tick(1)
+    }
+}
 
 
 //waitFor, 至多等msMax毫秒直到fn()為真, 回傳最後之fn()
@@ -131,6 +141,7 @@ let pollRaw = (srv, input, msWait = 30, func = '[sys:polling]') => {
 
 export {
     delay,
+    advance,
     waitFor,
     countTimeout,
     captureConsole,

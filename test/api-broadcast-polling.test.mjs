@@ -8,6 +8,7 @@ import WConverhpClient from 'w-converhp/src/WConverhpClient.mjs'
 import WServBroadcastServer from '../src/WServBroadcastServer.mjs'
 import WServBroadcastClient from '../src/WServBroadcastClient.mjs'
 import { delay, waitFor, recordClient } from './tools/helpers.mjs'
+import { waitServerReady } from './tools/serverReady.mjs'
 
 
 //本檔以真WConverhpServer/WConverhpClient經HTTP(固定埠8097, 各案循序)驗證輪詢協定與停止, 對應之契約(兩端JSDoc):
@@ -54,11 +55,7 @@ let startServer = async (o = {}) => {
             }
         })
     }
-    await delay(500) //待伺服器啟動
-    let errStart = errs.find((s) => s.includes('start server error'))
-    if (errStart) {
-        throw new Error(`伺服端啟動失敗: ${errStart}`)
-    }
+    await waitServerReady(srv, url, () => errs.find((s) => s.includes('start server error'))) //待伺服器可服務(連線探測, 非固定等待)
     return srv
 }
 

@@ -1,3 +1,4 @@
+import get from 'lodash-es/get.js'
 import evEmitDelay from 'wsemi/src/evEmitDelay.mjs'
 import iseobj from 'wsemi/src/iseobj.mjs'
 import isfun from 'wsemi/src/isfun.mjs'
@@ -12,6 +13,11 @@ import isfun from 'wsemi/src/isfun.mjs'
 //  停止後之監聽器拋錯(含補發事件之監聽器)改以console.error輸出: 停止後不再派發本套件之事件, 但使用端程式之錯誤不可無聲
 //  本套件自發之error於派發當下無error監聽者時改以console.error輸出: 失敗不可無聲(eventemitter3對無監聽者之emit只回傳false)
 //  輸入ev為事件物件; opt.isCleared為回傳是否已停止之函數, 預設恆為false; opt.onDeliver(name, args)於實際派發、呼叫監聽器之前呼叫(供伺服端記錄已送達之進出)
+//  opt.trace為觀察回調之通知函數(wsemi之getTrace所得, 格式(type, info)), 未給時不組事件物件; 事件(欄位皆為原始值, 兩端之opt.onTrace共用, 列舉見兩端JSDoc):
+//    emit(name, final): 事件已排定(1ms後派發), final為是否為停止時之補發; 已停止而不再排程者不通知
+//    deliver(name, final, ok): 事件已派發(監聽器皆已呼叫完), ok為監聽器是否皆未拋錯; 監聽器拋錯時先通知deliver(ok為false), 其通報於其後
+//    report(src, msg, via, name): 本套件改以error事件或console.error通報: src為'listener'(監聽器拋錯, name為其事件名, msg為listener of event[x] error)或'error'(本套件自發之error於無error監聽者時改以console.error, msg為其msg), via為'event'(error事件)或'console'(console.error)
+//    停止閘門丟棄之事件(排程時或派發當下已停止)不通知: 停止後除停止時已在進行之那次派發與補發事件外不再通知
 //  回傳eeEmit(name, ...args); eeEmit.final(name, ...args)不受停止閘門約束, 僅供伺服端停止時之補發
 function genEeEmit(ev, opt = {}) {
 
@@ -20,6 +26,9 @@ function genEeEmit(ev, opt = {}) {
     if (!isfun(isCleared)) {
         isCleared = () => false
     }
+
+    //trace
+    let trace = isfun(opt.trace) ? opt.trace : null
 
     //onDeliver
     let onDeliver = opt.onDeliver
@@ -50,9 +59,16 @@ function genEeEmit(ev, opt = {}) {
                 let e = { msg: `listener of event[${r.name}] error`, err: r.msg }
                 if (isCleared()) {
                     report(e)
+                    if (trace !== null) {
+                        trace('report', { src: 'listener', msg: e.msg, via: 'console', name: String(r.name) })
+                    }
                     return false
                 }
-                return ev.emit('error', e)
+                let b = ev.emit('error', e)
+                if (trace !== null) {
+                    trace('report', { src: 'listener', msg: e.msg, via: 'event', name: String(r.name) })
+                }
+                return b
             }
 
             //check, 停止閘門
@@ -63,6 +79,9 @@ function genEeEmit(ev, opt = {}) {
             //check, 本套件自發之error無監聽者時改以console.error輸出
             if (name === 'error' && listenerCount('error') === 0) {
                 report(r)
+                if (trace !== null) {
+                    trace('report', { src: 'error', msg: get(r, 'msg', ''), via: 'console' })
+                }
                 return false
             }
 
@@ -71,7 +90,21 @@ function genEeEmit(ev, opt = {}) {
                 onDeliver(name, args)
             }
 
-            return ev.emit(name, ...args)
+            //未給觀察回調: 同原派發
+            if (trace === null) {
+                return ev.emit(name, ...args)
+            }
+
+            //deliver, 監聽器拋錯時ev.emit外拋, 以finally通知(ok為false)後照常外拋, 由evEmit接手通報
+            let ok = false
+            try {
+                let b = ev.emit(name, ...args)
+                ok = true
+                return b
+            }
+            finally {
+                trace('deliver', { name, final: !gated, ok })
+            }
         }
     }
     let funEmitGated = funEmitOf(true)
@@ -86,11 +119,19 @@ function genEeEmit(ev, opt = {}) {
         }
 
         evEmitDelay(ev, name, args, { tag: 'w-serv-broadcast', funEmit: funEmitGated })
+
+        //emit, 於排定之後通知: 回調內停止者, 該事件已排定而於派發當下被停止閘門丟棄
+        if (trace !== null) {
+            trace('emit', { name, final: false })
+        }
     }
 
     //final, 停止時之補發, 不受停止閘門約束
     eeEmit.final = (name, ...args) => {
         evEmitDelay(ev, name, args, { tag: 'w-serv-broadcast', funEmit: funEmitFinal })
+        if (trace !== null) {
+            trace('emit', { name, final: true })
+        }
     }
 
     return eeEmit

@@ -4,6 +4,7 @@ import WConverhpClient from 'w-converhp/src/WConverhpClient.mjs'
 import WServBroadcastServer from '../src/WServBroadcastServer.mjs'
 import WServBroadcastClient from '../src/WServBroadcastClient.mjs'
 import { delay, waitFor, recordClient } from './tools/helpers.mjs'
+import { waitServerReady } from './tools/serverReady.mjs'
 
 
 //本檔以真WConverhpServer/WConverhpClient經HTTP(固定埠8098, 各案循序)驗證輪詢之身分驗證鉤子, 對應之契約(兩端JSDoc):
@@ -46,19 +47,20 @@ let startServer = async (o = {}) => {
     srv.on('error', (e) => {
         errs.push(e)
     })
-    await delay(500) //待伺服器啟動
-    let errStart = commErrs.find((s) => s.includes('start server error'))
-    if (errStart) {
+    try {
+        await waitServerReady(srv, url, () => commErrs.find((s) => s.includes('start server error'))) //待伺服器可服務(連線探測, 非固定等待)
+    }
+    catch (err) {
         //失敗時自行釋放(呼叫端之finally尚未接手): 停止本套件之計時器與通訊服務
         srv.clearBroadcast()
         try {
             await srv.stop()
         }
-        catch (err) {
+        catch (err2) {
             //啟動失敗之通訊服務可能無法停止, 不影響拋出啟動失敗
-            console.log('stop after start failure:', String(err))
+            console.log('stop after start failure:', String(err2))
         }
-        throw new Error(`伺服端啟動失敗: ${errStart}`)
+        throw err
     }
     return { srv, enters, errs, seenInputs }
 }

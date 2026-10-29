@@ -1,7 +1,8 @@
 import assert from 'assert'
 import evem from 'wsemi/src/evem.mjs'
 import WServBroadcastServer from '../src/WServBroadcastServer.mjs'
-import { delay, countTimeout, captureConsole, hasCall, recordServer, pollRaw } from './tools/helpers.mjs'
+import { countTimeout, captureConsole, hasCall, recordServer, pollRaw } from './tools/helpers.mjs'
+import { genTracer } from './tools/tracer.mjs'
 
 
 //本檔對應之契約(WServBroadcastServer之JSDoc): 通訊服務實體須為具emit、on、off函數之eventemitter3事件物件, 有物件而缺emit、on或off時於建構時拋錯,
@@ -69,15 +70,17 @@ describe('server construct', function() {
 
     it('停止後以同一事件物件重新建構可正常運作', async function() {
         let ev = evem()
-        let s1 = WServBroadcastServer(ev)
+        let tr1 = genTracer()
+        let s1 = WServBroadcastServer(ev, { onTrace: tr1.onTrace })
         await pollRaw(s1, { clientId: 'c1' })
-        await delay(30)
+        await tr1.wait({ type: 'deliver', name: 'clientChange', final: false }) //c1之進入已送達
         s1.clearBroadcast()
-        await delay(20) //舊實體之補發(clientLeave、clientChange)於停止後脫勾送達, 且與新實體共用同一事件物件, 待其送達後再重建
-        let s2 = WServBroadcastServer(ev)
+        await tr1.wait({ type: 'deliver', name: 'clientChange', final: true }) //舊實體之補發(clientLeave、clientChange)於停止後脫勾送達, 且與新實體共用同一事件物件, 待其送達後再重建
+        let tr2 = genTracer()
+        let s2 = WServBroadcastServer(ev, { onTrace: tr2.onTrace })
         let ms = recordServer(s2)
         let r = await pollRaw(s2, { clientId: 'c2' })
-        await delay(30)
+        await tr2.wait({ type: 'deliver', name: 'clientChange', final: false }) //c2之進入已送達
         assert.deepStrictEqual(r, { resolve: [] }) //契約: 重新建構之實體照常回應輪詢
         assert.deepStrictEqual(ms, ['enter|c2', 'change|1']) //契約: 重新建構之實體只追蹤自己之客戶端
         assert.strict.equal(ev.listenerCount('execute'), 1) //契約: 停止已移除舊實體之監聽

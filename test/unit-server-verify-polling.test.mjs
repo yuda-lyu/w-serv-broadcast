@@ -1,7 +1,9 @@
 import assert from 'assert'
+import { mock } from 'node:test'
 import evem from 'wsemi/src/evem.mjs'
 import WServBroadcastServer from '../src/WServBroadcastServer.mjs'
-import { delay, waitFor, countTimeout, captureConsole, hasCall, recordServer, pollRaw } from './tools/helpers.mjs'
+import { delay, waitFor, countTimeout, captureConsole, hasCall, recordServer, pollRaw, advance } from './tools/helpers.mjs'
+import { genTracer } from './tools/tracer.mjs'
 
 
 //本檔對應之契約(WServBroadcastServer之JSDoc, opt.verifyPolling):
@@ -406,12 +408,13 @@ describe('server verifyPolling', function() {
         })
 
         it('拒絕且無error監聽者時改以console.error輸出, 不拋錯', async function() {
-            let srv = WServBroadcastServer(evem(), { verifyPolling: () => false })
+            let tr = genTracer()
+            let srv = WServBroadcastServer(evem(), { verifyPolling: () => false, onTrace: tr.onTrace })
             made.push(srv)
             let logs = await captureConsole(async () => {
                 let r = await pollRaw(srv, { clientId: 'x' })
                 assert.deepStrictEqual(r, { reject: DENIED })
-                await delay(50)
+                await tr.wait({ type: 'report', src: 'error', via: 'console' }) //待本套件改以console.error通報(error事件已排定而於1ms後派發)
             }, 'error')
             assert.ok(hasCall(logs, DENIED), `應以console.error輸出, 實得: ${JSON.stringify(logs)}`) //契約: 本套件之error無監聽者時改以console.error輸出
             srv.clearBroadcast()
@@ -545,27 +548,34 @@ describe('server verifyPolling', function() {
 
     })
 
-    describe('在線期限(真實時間, 約12秒)', function() {
+    describe('在線期限(假時鐘)', function() {
 
         it('被拒絕之輪詢不刷新在線期限, 自然離線之clientLeave仍按最後一次放行起算; 其data無token', async function() {
-            this.timeout(40000)
-            let allow = true
-            let { srv, leaves } = gen(() => allow)
-            let tLeave = 0
-            srv.on('clientLeave', () => {
-                tLeave = Date.now()
-            })
-            let t0 = Date.now()
-            await pollRaw(srv, { clientId: 'a', [KEY]: 'tok-A', x: 1 }) //唯一一次放行
-            await delay(4000)
-            allow = false
-            assert.deepStrictEqual(await pollRaw(srv, { clientId: 'a', [KEY]: 'tok-B', x: 2 }), { reject: DENIED }) //約4秒時被拒
-            await delay(3500)
-            assert.deepStrictEqual(await pollRaw(srv, { clientId: 'a', [KEY]: 'tok-C', x: 3 }), { reject: DENIED }) //約7.5秒時被拒
-            assert.ok(await waitFor(() => leaves.length === 1, 9000), '應於放行後約10秒自然離線') //若被拒絕之輪詢刷新期限, 離線會晚於約17.5秒
-            let dt = tLeave - t0
-            assert.ok(dt >= 8500 && dt <= 13500, `自然離線應在最後一次放行後約10秒, 實得${dt}ms`) //契約: 被拒絕不刷新在線身分
-            assert.deepStrictEqual(leaves[0], { clientId: 'a', data: { clientId: 'a', x: 1 } }) //契約: clientLeave之data為最後一次放行之輸入(已剝除token)
+            //在線逾時(固定10秒)本身即規格, 以假時鐘(含Date, 在線偵測以Date.now判定)推進, 不等真實時間
+            mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'] })
+            try {
+                let allow = true
+                let { srv, leaves } = gen(() => allow)
+                let tLeave = 0
+                srv.on('clientLeave', () => {
+                    tLeave = Date.now()
+                })
+                let t0 = Date.now()
+                await pollRaw(srv, { clientId: 'a', [KEY]: 'tok-A', x: 1 }) //唯一一次放行
+                advance(4000)
+                allow = false
+                assert.deepStrictEqual(await pollRaw(srv, { clientId: 'a', [KEY]: 'tok-B', x: 2 }), { reject: DENIED }) //4秒時被拒
+                advance(3500)
+                assert.deepStrictEqual(await pollRaw(srv, { clientId: 'a', [KEY]: 'tok-C', x: 3 }), { reject: DENIED }) //7.5秒時被拒
+                advance(2600) //推進至10.1秒: 若被拒絕之輪詢刷新期限, 離線會晚於17.5秒
+                assert.strict.equal(leaves.length, 1, '應於放行後約10秒自然離線')
+                let dt = tLeave - t0
+                assert.ok(dt > 10000 && dt <= 10100, `自然離線應在最後一次放行後10秒起之第一個偵測點, 實得${dt}ms`) //契約: 被拒絕不刷新在線身分
+                assert.deepStrictEqual(leaves[0], { clientId: 'a', data: { clientId: 'a', x: 1 } }) //契約: clientLeave之data為最後一次放行之輸入(已剝除token)
+            }
+            finally {
+                mock.timers.reset()
+            }
         })
 
     })

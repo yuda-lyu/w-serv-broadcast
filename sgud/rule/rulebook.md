@@ -108,6 +108,22 @@
 - 站點行號說明:本輪於 `Sv:127-130` 新增 4 行、`clearBroadcast` 內 `let latest` 前新增 3 行並於函式尾移除 3 行,故 R01–R11 所載 `Sv:` 行號,原 ≥129 者 +4、原 ≥307 且 ≤320 者 +7(以 `grep -n` 重定位為準;R12 所載為本輪後行號).
 - 測試:`test/unit-server-leave-queue.test.mjs`(14 案:在線逾時離線〔真實時間約 13 秒;未注入/注入 verifyPolling 各 6 案:離線者與持續輪詢者、clientLeave 監聽內探測+輪詢、監聽返回後(setImmediate)探測+輪詢、離線後 100ms 廣播再輪詢(d:離線後、重新輪詢前之廣播不進舊佇列)、離線後重新輪詢之新佇列與廣播、持續輪詢者依序收全部廣播〕12;注入組另 1 案:驗證在途跨離線(e);停止補發 1;停止案以 waitFor 等 clientEnter/補發,不用固定 delay).首次輪詢前延後 500ms,使離線時點(約 10.5 秒)落在 1 秒修剪計時器兩次之中間,修前行為才穩定重現(未延後時修前行為 6 次中有 2 次未完整重現,其中 1 次整份誤綠).變異驗證 6 點(對 14 案終版):M1 不刪(=修前)連 3 次皆 7 條紅(a、c、d 各 2 組 + e)、M2 延後 20ms 刪 7 條紅、M4 清全部 4 條紅、M6 停止路徑延後清 1 條紅,皆被抓到;M3 同步段內事件後刪、M5 停止路徑清空移回原位為等價變異,存活如預期(14/14 綠);現行碼新測試連跑 2 次 14/14,全套連跑 3 次皆 145 passing;證據見 broadcast-run03 報告.
 
+### R13 計時器相關函數提供觀察回調 `opt.onTrace`,測試以事件同步、不以時間同步(2026-10-29 主控任務 20261029050859 之 tm-broadcast;全規格見 `C:\opensrcOper\dspec\計時器相關函數之觀察回調與測試.md` P1~P7,本節只記本套件之落地,不重述規格)
+
+- 緣由:輪詢、在線偵測、修剪與 1ms 脫勾派發皆由計時器驅動,以「等 N 毫秒後斷言」同步者於負載下計時器延遲而偶發失敗(經驗 E11:`timePolling 30`、200ms 內至少 2 則 error,平行跑第 4 次只得 1 則).
+- 規則:
+  1. 兩端建構子皆收 `opt.onTrace`(選用,JSDoc 列舉事件),事件為凍結之 `{ type, ... }`、欄位皆原始值、不帶接收者呼叫、回調拋錯與回傳 rejection 皆忽略、回傳值不用;未給或非函數時不組事件物件(`getTrace` 回 null,各站點 `if (trace)`);**單一擁有者** `wsemi/src/getTrace.mjs`,本套件不自寫等價實作.
+  2. 派發之三種事件(`emit`、`deliver`、`report`)由 `src/genEeEmit.mjs` 單一擁有(兩端共用,傳入 `opt.trace`);兩端各自之事件在各自站點.**停止後不再通知**,例外:停止當下已在進行之那次派發之 `deliver`/`report`,與伺服端補發事件之 `emit`/`deliver`/`report`;停止閘門丟棄之事件不通知.
+  3. 測試以「等第 N 個事件」為同步點(`test/tools/tracer.mjs` 之 `genTracer`:`wait(cond, n, from)`,防懸置上限用模組載入時保存之真實 `setTimeout`);不以固定等待後斷言肯定結果.否定斷言(未派發某事件)之觀察窗只在「排定在先之計時器必先於其後排定且到期較晚者觸發」成立時用短等待(如 `delay(5)`),連鎖計時器(在線偵測 1ms 後再派發 1ms)改假時鐘.
+  4. 在線逾時(固定 10 秒)、修剪(1 秒)本身即規格者以 `node:test` 之 `mock.timers`(含 `Date`)驗證,**逐毫秒推進**(`test/tools/helpers.mjs` 之 `advance`):單次 `tick(n)` 時鐘先跳至終點,其間新排定之計時器不執行且 `Date.now()` 為終點值(2026-10-29 實測).
+  5. 真實伺服器(`WConverhpServer`)之就緒不用固定等待:`test/tools/serverReady.mjs` 之 `waitServerReady` 以 `WConverhpClient` 對其發探測請求(`waitFun` 輪詢,臨時掛一個只回應探測之 execute 監聽、就緒後移除)——WConverhpServer 未提供就緒事件或 Promise(屬 w-converhp,本套件不改).
+  6. 每個加 `onTrace` 之函數補 P3/P4 案(五種回調:未傳、紀錄器、拋錯、回傳 rejection、非函數):`test/unit-trace-client.test.mjs`、`test/unit-trace-server.test.mjs`.
+- 事件列舉(型別/欄位):前端 `start(ms)`、`tick(n, skipped)`、`request(n, token)`、`result(n, ok, reason〔ok|invalid|error〕, msgs?)`、`stop(inflight)`;伺服端 `alive(evType〔enter|leave|tick|stop〕, key?, now?, size?)`、`prune(queues, removed)`、`stop(final)`;兩端共用 `emit(name, final)`、`deliver(name, final, ok)`、`report(src〔listener|error〕, msg, via〔event|console〕, name?)`.
+- 站點全集(盤點:`grep -n "setInterval\|setTimeout\|evEmitDelay" src/*.mjs`):前端輪詢計時器(`Cl` 之 `t = setInterval`)、伺服端修剪計時器(`Sv` 之 `t = setInterval`)、`genEeEmit` 之 `evEmitDelay`(兩處:排定與補發)、`alive`(wsemi 之 36 組之一,轉交其 `onTrace`).全部已套.
+- 測試站點(改造前 C 類,盤點 `timer-inv01-明細表.md` w-serv-broadcast 節):`unit-client-construct:44`、`unit-listener-error` 之 server 5 案+client 4 案+輔助 `checkListenerError`×2、`unit-server-clear` 11 案、`unit-server-construct:70`、`unit-server-verify-polling:408`、`api-broadcast-polling`/`api-broadcast-verify-polling` 之 `startServer` 就緒等待.全部已改.B(牆鐘):`unit-server-clear:44`(停止至行程結束 <1500ms 牆鐘門檻,改量作用中計時器數)、`unit-server-verify-polling:550`(真實 12 秒,dt∈[8500,13500])、`unit-listener-error` 之 clientLeave(真實 10.5 秒)已改假時鐘.未改:`unit-server-leave-queue`(真實時間約 13 秒情境,A/time-as-data;待辦 T4)與各檔輪詢上限型 `waitFor`(條件式等待,有上限),見 T4.
+- `prune.removed` 為保底路徑之計數:離線時已先刪佇列(R12),正常運作下恆為 0,無法由輸入觸發 `removed>0`,測試只斷言 `removed: 0` 與 `queues`(`unit-trace-server` 假時鐘案:在線者之佇列每次修剪皆保留、離線後為 0).
+- 測試:見第 5 節.
+
 ## 2. 已知限制(刻意不修或範圍外)
 
 - L1 停止時有輪詢在途而通訊物件不支援 opt.signal(WConverhpClient ≤ 2.1.7、或包裝 execute 而只轉交 3 個參數者):該請求照常完成或重試並發其自身 error,行程待其結束;本套件只丟棄其結果(R01;已載 JSDoc).生產堆疊之通訊物件由 w-serv-hapi 建立,其升至 w-converhp ≥ 2.1.8 後 R10 才在生產堆疊生效.(原載「通訊物件仍重試並發其自身 error,本套件無法中止(execute 無中止介面;裁決 Q8)」,2026-10-13 依 w-converhp 2.1.8 改寫,見 R10.)
@@ -129,6 +145,8 @@
 - T1 前端「連線→未連線」之反向事件(裁決 Q3:本輪不做,JSDoc 已寫明現行語意「每輪失敗發 `{ msg: '[sys:polling] error', err }`、恢復時再發 open、不另提供斷線事件」).新增時須決定:事件名、停止時是否比照伺服端補發、與 w-converhp 自身 error 之區分.
 - T2 既有測試檔內之 delay、poll 等與 `test/tools/helpers.mjs` 重複,可收斂.
 - T3(已完成,2026-10-13 主控任務 20261013214634 之 run02)停止時中止在途之輪詢請求(採用 w-converhp 2.1.8 之 `opt.signal`;w-converhp 之 `建議w-serv-broadcast調整.md`):見 R10、R01 範圍限制、R04、L1、L6、L7、L8.審計回應 `C:\opensrcOper\dnow\20261013214634\agent-out\run01-審計回應.md`、裁決 `C:\opensrcOper\dnow\20261013214634\review\run01-複審.md`、全盤 `tmp/run03-中止在途輪詢-全盤.md`.
+
+- T4 `test/unit-server-leave-queue.test.mjs`(R12,真實時間約 13 秒、`while` 迴圈上限 16 秒、探測依賴 1 秒修剪計時器相位)可改假時鐘 `advance`+`onTrace`(`prune`/`alive` 事件)而不等真實時間;盤點判 A(`time-as-data`、否定窗),主控裁示 tm-broadcast 範圍不含,日後另案.另各檔輪詢上限型 `waitFor`(`unit-client-*`、`unit-server-verify-polling` 等,多為條件式等待)可逐步改等 `onTrace` 事件.
 
 ## 4. 破壞性變更紀錄
 
@@ -157,7 +175,12 @@
 | `test/unit-client-get-token.test.mjs` | unit | R11(前端 getToken)、R04、R06、R10(signal) | 11 |
 | `test/api-broadcast-verify-polling.test.mjs` | api(真 w-converhp,埠 8098,各案循序) | R11 端到端(含伺服端未提供鉤子而前端有 getToken) | 4 |
 | `test/unit-server-leave-queue.test.mjs` | unit(含真實時間約 13 秒) | R12(離線時先清佇列再發 clientLeave)、R07(停止補發)、R11(注入組:驗證在途跨離線) | 14 |
-| `test/tools/helpers.mjs` | 共用工具(非測試) | — | — |
+| `test/unit-trace-client.test.mjs` | unit | R13(前端 `opt.onTrace`:事件內容與順序、凍結/無接收者/原始值、P3/P4 五種回調) | 12 |
+| `test/unit-trace-server.test.mjs` | unit(含假時鐘) | R13(伺服端 `opt.onTrace`:alive 轉交、prune、補發與 stop、凍結/無接收者/原始值、P3/P4 五種回調) | 9 |
+| `test/tools/helpers.mjs` | 共用工具(非測試;`advance` 為假時鐘逐毫秒推進) | — | — |
+| `test/tools/tracer.mjs` | 共用工具(非測試;`genTracer` 記錄 `onTrace` 事件並提供 `wait(cond, n, from)`) | R13 | — |
+| `test/tools/serverReady.mjs` | 共用工具(非測試;`waitServerReady` 以連線探測待真 WConverhpServer 可服務) | R13 | — |
+| `test/tools/loadTrial.mjs`、`loadPreload.mjs` | 負載試驗執行器(非測試;複製自 wsemi `test/tools/`,不跨套件引用路徑) | R13(P7) | — |
 | `test/tools/childClientStop.mjs` | 子行程工具(非測試;真 WConverhpClient + 本套件前端,停止後不呼叫 process.exit) | R10 | — |
 
 執行:`npm test`(`mocha --parallel "test/*.test.mjs" --timeout 180000`),2026-10-13 run02 後 73 passing;2026-10-13 夜(主控任務 20261013214634 之 run02)後 85 passing;2026-10-23 broadcast-run01 後 127 passing(85 + 新增 42);2026-10-24 broadcast-run02 後 131 passing(85 + 新增 46);2026-10-24 broadcast-run03 後 145 passing(131 + 新增 14);單檔:`npx mocha --no-parallel <檔> --timeout 180000`.

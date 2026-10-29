@@ -2,9 +2,10 @@
 
 本檔記當前已開發功能之最新狀態(各功能做到哪裡、對應之規則帳本條目與測試檔、已知缺口與待辦、最近一次驗證或發布之版本),只記現況、不寫過程(過程見 `sgud/exp/experience.md`);藍圖見 `sgud/rule/rulebook.md`.
 
-- 更新:2026-10-24(主控任務 20261023213314 之 broadcast-run03,承 run01、run02).
-- 套件版本:`package.json` 為 1.1.11(已發布:輪詢驗證鉤子、前端 getToken、未注入時亦剝除 `__sysToken__`);**broadcast-run03 之變更(R12)尚未發布**,版號由主控決定(相容).
-- 最近一次驗證:2026-10-24(broadcast-run03)`npm test`(`mocha --parallel "test/*.test.mjs" --timeout 180000`)連跑 3 次皆 145 passing(131 + 新增 14);eslint 對改動檔 0 error;新測試對變異版 M1(=修前)連 3 次 7 條紅.broadcast-run02 時 w-serv-webdata 之 9 檔測試(複本,未動該 repo;其以未提供鉤子之方式使用本套件)對現行碼 155 passing(run03 未重跑,該 repo 不在範圍).
+- 更新:2026-10-29(主控任務 20261029050859 之 tm-broadcast:計時器相關測試改以 `opt.onTrace` 事件同步,承 broadcast-run03).
+- 套件版本:`package.json` 為 1.1.13(`wsemi` 依賴範圍升至 `^1.9.29`);**broadcast-run03 之變更(R12)與 tm-broadcast 之變更(R13,新增選用 `opt.onTrace`)尚未發布**,版號由主控決定(相容,無破壞性變更);**事件命名待主控核可**(w-serv-webdata、w-sync-webdata、w-serv-hapi 之測試將引用).
+- 最近一次驗證:2026-10-29(tm-broadcast)全套 166 passing、0 failing(145 + 新增 21〔`unit-trace-client` 12、`unit-trace-server` 9〕);改造前之 145 案原樣對現行 src 145 passing(未傳 `onTrace` 之行為不變);eslint 對改動檔 0 error;負載試驗(同一批 7 檔、94 案、各 5 次):本輪改寫之 48 案失敗次數 CPU 壓力 0→0、事件迴圈阻塞 400:1000 5→0、重度阻塞 1500:3000 10→0;**變異驗證未完成**:12 項(S-M1～S-M8、C-M1～C-M4)之腳本已備(`tmp/tm-broadcast/mut.mjs`,同證據夾 `agent-out/tm-broadcast-evidence/scripts/`),僅 S-M1 一項已得(新測試 1／68 案失敗,擊殺),其餘待下一輪取得測試鎖後一次執行(見 tm-broadcast 報告 §5);指定形式之 `quiet-run --lock … npm test` 摘要亦待補(等價之全套於獨佔鎖內兩次 166／0).
+- 前次驗證:2026-10-24(broadcast-run03)`npm test` 連跑 3 次皆 145 passing.broadcast-run02 時 w-serv-webdata 之 9 檔測試(複本,未動該 repo;其以未提供鉤子之方式使用本套件)對現行碼 155 passing(run03 與 tm-broadcast 皆未重跑,該 repo 不在範圍).
 
 ## 功能現況
 
@@ -20,6 +21,8 @@
 | error 事件 `{ msg, err }` 與監聽器拋錯隔離 | 完成 | R01 | `unit-listener-error` |
 | **輪詢之身分驗證鉤子**:伺服端 `opt.verifyPolling`、前端 `opt.getToken`、固定鍵 `__sysToken__` | **完成(2026-10-23,待發布)** | **R11**、R04 | `unit-server-verify-polling`(31)、`unit-client-get-token`(11)、`api-broadcast-verify-polling`(4,埠 8098) |
 
+| **觀察回調 `opt.onTrace`**(前端:start/tick/request/result/stop;伺服端:alive 轉交/prune/stop;兩端共用:emit/deliver/report):測試以事件同步而非固定等待 | **完成(2026-10-29,待發布與主控核可事件命名)** | **R13** | `unit-trace-client`(12)、`unit-trace-server`(9);C 類測試改寫:`unit-listener-error`、`unit-server-clear`、`unit-client-construct`、`unit-server-construct`、`unit-server-verify-polling`、`api-broadcast-polling`、`api-broadcast-verify-polling` |
+
 ## 已知缺口(皆為刻意不修或範圍外,詳見規則帳本第 2 節)
 
 - L1 通訊物件不支援 opt.signal 時,停止後其請求照常完成或重試.
@@ -32,6 +35,7 @@
 
 - 下游(broadcast-run03,R12):w-serv-webdata 主責 agent 實測(`webdata-run01-修正報告.md` L22 ③)之「離線後 `clientLeave` 先發出、佇列後刪,約 1 秒內他人以同一 clientId 重新綁定可取得遺留廣播」已由本套件 R12 處理(待發布);w-serv-webdata 端不必改,升版後即生效.
 
-- T1 前端「連線→未連線」反向事件(日後另案).T2 既有測試檔內重複之 delay/poll 可收斂.
+- 下游(tm-broadcast,R13):w-serv-webdata(27 項等本套件 2 秒輪詢之固定等待)、w-sync-webdata、w-serv-hapi 之測試於本套件發布後可改引用兩端 `opt.onTrace`(事件列舉見兩端 JSDoc 與 README);`prune.removed` 為保底路徑之計數,正常恆為 0.
+- T1 前端「連線→未連線」反向事件(日後另案).T2 既有測試檔內重複之 delay/poll 可收斂.T4 見規則帳本(`unit-server-leave-queue` 真實時間情境改假時鐘;輪詢上限型 `waitFor` 逐步改等事件).
 - **下游必做(L12)**:w-serv-webdata 之資料通道(`src/WServWebdataServerExec.mjs:264-285` 之 `execFun`)對 `[sys:polling]` 會同步回 `invalid token`/`invalid input`;本套件提供鉤子後回覆為非同步,該通道會先結算而使輪詢失敗,故改 w-serv-webdata 時須讓其略過 `[sys:polling]`.
 - 下游:w-serv-webdata 須注入 `verifyPolling`(以其 `getUserIdByToken` 判斷)並由其前端提供 `getToken`;本套件發布後才改 w-serv-webdata(建議檔「三、後續」).自有套件庫內唯一使用端為 w-serv-webdata(`new WServBroadcastServer(inst)` / `new WServBroadcastClient(inst)` 皆不帶 opt,新增選項不影響其現行用法).

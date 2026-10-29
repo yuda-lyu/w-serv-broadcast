@@ -149,3 +149,28 @@
 - 做法:測試修前行為若依賴計時器相位,先把待觀察事件放在兩次週期之間(延後起點),再下「修前紅」之結論;變異複本要連跑多次(≥3)確認紅燈穩定;探測點用 `setImmediate`(同輪 timers 之後)比 `setTimeout(…,5)` 更貼近「監聽返回後立即」且較不受負載影響.
 - 另:`clientLeave` 經 `Ge` 以 1ms timer 脫勾派發,「同步段內先刪後 `eeEmit`」與「先 `eeEmit` 後刪」不可區分(等價變異,M3/M5 存活);可抓的是「刪除晚於派發」(M2:延後 20ms 刪)與「不刪」(M1).寫變異時先判斷哪些順序在脫勾下可觀察.
 
+### E29 計時器相關測試改以 `opt.onTrace` 事件同步(2026-10-29,tm-broadcast;規格 dspec/計時器相關函數之觀察回調與測試.md;規則 R13)
+
+- 事實:本套件計時器=前端輪詢 `setInterval`、伺服端修剪 `setInterval`、在線偵測(wsemi `alive`,偵測 50ms、逾時 10s、進入 1ms 脫勾)、事件派發 1ms 脫勾(`genEeEmit`→`evEmitDelay`).改造前 C 類測試以 `delay(N)` 當同步點,遇負載計時器延遲即偶發失敗(E11 同型).
+- 做法:兩端 `opt.onTrace`;**派發層(`genEeEmit`)單一擁有 `emit`/`deliver`/`report`**,測試只需等 `deliver` 或 `report`;`wsemi` 之 `alive` 事件經伺服端轉交(欄位 `evType`,因事件欄位名不得為 `type`).伺服端停止後補發事件之 `deliver` 在 `stop` 之後,屬規格〈停止後不再通知〉之刻意例外,JSDoc 已載.
+- 設計取捨:不加 `drop`(停止閘門丟棄)事件——它必然發生在停止之後,違反〈停止後不再通知〉;否定斷言(停止前已排定者不派發)改用「排定在先之計時器必先於其後才排定且到期較晚者觸發」之順序性,以短等待(`delay(5)`)涵蓋單階 1ms 計時器,連鎖計時器(在線偵測 1ms→派發 1ms)改假時鐘.
+- 驗證:停止後 `error` 監聽器自身拋錯時,wsemi 在 `evEmit` 之 catch 內同一堆疊 `console.error`,測試等 `deliver`(`ok:false`)後續行(微任務,堆疊結束後),故 `console.error` 已發生.
+
+### E30 `mock.timers.tick(n)` 不是逐毫秒推進,連鎖計時器與 `Date.now()` 會錯(2026-10-29,tm-broadcast)
+
+- 事實:實測 `tick(120)`:時鐘先跳至 120,其間新排定之 1ms 計時器 `runAt=121` 不執行,且回呼內 `Date.now()` 恆為 120(`[["a",120],["i",120],["i",120]]`,證據 `tmp/tm-broadcast/probe-mock.mjs`).在線偵測以 `Date.now()` 判逾時、派發為 1ms 連鎖計時器,故一次 `tick(10100)` 不可用.
+- 做法:`test/tools/helpers.mjs` 之 `advance(ms)` 逐毫秒 `tick(1)`(10100 次仍是毫秒級);任何用 `mock.timers` 推進連鎖計時器或時間敏感回呼者一律用它.
+
+### E31 真實 WConverhpServer 之就緒:無事件、無 Promise,改連線探測(2026-10-29,tm-broadcast)
+
+- 事實:`WConverhpServer` 內 `pmStart` 只供其 `stop()` 等待,未對外;啟動失敗(埠被占)只發 `error` 事件.原測試 `delay(500)` 當就緒.
+- 做法:`test/tools/serverReady.mjs` 之 `waitServerReady`:臨時掛一個只回應探測函數名之 `execute` 監聽,以 `WConverhpClient`(`retryMain: 0`)經 HTTP 發探測,`waitFun`(20ms 週期)重試,啟動失敗事件轉為拋錯;就緒後移除監聽(否則「只有本套件之監聽時停止後得 no listener」一案之前提被破壞).走完整協定,埠被他行程占用時對方不會回應本協定,不致誤判就緒.
+
+### E32 多套件同時派工時 `--lock-exclusive` 排隊可達數十分鐘;負載試驗分三次取鎖更久(2026-10-29,tm-broadcast)
+
+- 事實:同批 A 的 5 個套件各需獨佔鎖跑負載試驗;本套件基準自 06:05 排隊、06:28 才取得,三段(CPU/lag/重度)各自取鎖.
+- 做法:基準與派子代理前先排隊(規格 P7);三段盡量以**單一** quiet-run 包一支串三段之腳本取一次鎖(本輪中途改為此做法,`tmp/tm-broadcast/stages.mjs` 一次鎖內串全套驗證、基準、改造後三段;取鎖等待 25 分,持鎖 32 分);等鎖期間做不需跑測試之工作(文件、腳本、standalone 探測).
+- 陷阱一:**一般 `--lock` 在任何他套件之獨佔等待登記存在時不得取鎖**(`quiet-run.mjs` 之 `pendingPid()`),他套件之獨佔試驗輪流時一般測試可被餓死 1 小時以上;需要跑測試時把「全套＋變異」併入同一次 `--lock-exclusive`(持鎖約 12 分)比等一般鎖可靠.
+- 陷阱二:**背景指令之 `timeout` 含取鎖等待**——以 `timeout: 3300000`(55 分)啟動之 quiet-run,排隊逾 55 分即被工具終止,排隊位置歸零(本輪 07:58 排隊、08:53 被終止,恰在他套件之獨佔輪替前);排隊類指令一律用背景最長 `7200000`.
+- 陷阱三:變異驗證若變異使計時器殘留(如修剪計時器不清除),mocha 不結束而卡住;變異腳本之 mocha 一律加 `--exit`.
+
