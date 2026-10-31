@@ -1,12 +1,12 @@
 {
   "name": "w-serv-broadcast",
-  "version": "1.1.15",
+  "version": "1.1.16",
   "main": "dist/w-serv-broadcast-server.umd.js",
   "dependencies": {
-    "wsemi": "^1.9.33"
+    "wsemi": "^1.9.36"
   },
   "devDependencies": {
-    "w-converhp": "^2.1.12",
+    "w-converhp": "^2.1.13",
     "w-package-tools": "^1.1.21"
   },
   "scripts": {
