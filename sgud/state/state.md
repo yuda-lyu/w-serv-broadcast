@@ -2,9 +2,10 @@
 
 本檔記當前已開發功能之最新狀態(各功能做到哪裡、對應之規則帳本條目與測試檔、已知缺口與待辦、最近一次驗證或發布之版本),只記現況、不寫過程(過程見 `sgud/exp/experience.md`);藍圖見 `sgud/rule/rulebook.md`.
 
-- 更新:2026-10-29(主控任務 20261029050859 之 tm-broadcast:計時器相關測試改以 `opt.onTrace` 事件同步,承 broadcast-run03).
-- 套件版本:`package.json` 為 1.1.13(`wsemi` 依賴範圍升至 `^1.9.29`);**broadcast-run03 之變更(R12)與 tm-broadcast 之變更(R13,新增選用 `opt.onTrace`)尚未發布**,版號由主控決定(相容,無破壞性變更);**事件命名待主控核可**(w-serv-webdata、w-sync-webdata、w-serv-hapi 之測試將引用).
-- 最近一次驗證:2026-10-29(tm-broadcast)全套 166 passing、0 failing(145 + 新增 21〔`unit-trace-client` 12、`unit-trace-server` 9〕);改造前之 145 案原樣對現行 src 145 passing(未傳 `onTrace` 之行為不變);eslint 對改動檔 0 error;負載試驗(同一批 7 檔、94 案、各 5 次):本輪改寫之 48 案失敗次數 CPU 壓力 0→0、事件迴圈阻塞 400:1000 5→0、重度阻塞 1500:3000 10→0;**變異驗證未完成**:12 項(S-M1～S-M8、C-M1～C-M4)之腳本已備(`tmp/tm-broadcast/mut.mjs`,同證據夾 `agent-out/tm-broadcast-evidence/scripts/`),僅 S-M1 一項已得(新測試 1／68 案失敗,擊殺),其餘待下一輪取得測試鎖後一次執行(見 tm-broadcast 報告 §5);指定形式之 `quiet-run --lock … npm test` 摘要亦待補(等價之全套於獨佔鎖內兩次 166／0).
+- 更新:2026-10-31(主控任務 20261031101856 之 broadcast,排程第 158 項:診斷輸出經 wsemi `getDiag`,R14;承 tm-broadcast).
+- 套件版本:`package.json` 為 1.1.14(本輪未動 version;`wsemi` 依賴範圍升至 `^1.9.33`、`w-converhp` devDependency `^2.1.12`,為 `getDiag` 所需);**R14(本輪,含破壞性之 console 輸出格式變更)尚未發布**,版號由主控決定;R12、R13 之發布狀態以主控為準(本檔前次記為未發布,現 `package.json` 已為 1.1.14,未核對其內容);事件命名(R13)待主控核可之事項不變.
+- 最近一次驗證:2026-10-31(broadcast 第 158 項)全套 193 passing、0 failing(既有 166 + 新增 27〔`unit-diag-output`〕),`quiet-run --lock … npm test` 兩次(192、193);修前紅(測試先寫,對未修 src)23 failing;變異 13 項(M1~M13)全數被擊殺(見 R14 與報告 §5);eslint 對改動檔 0 error;真實 w-converhp 驗收(兩端無 error 監聽者、token 出現在鉤子回傳值與 `getToken`):預設/`logDetail`/`funLog` 三模式輸出中 token 出現 0 次(`logDetail` 為 `denied for ***`).
+- 前次驗證(2026-10-29,tm-broadcast):全套 166 passing、0 failing(145 + 新增 21〔`unit-trace-client` 12、`unit-trace-server` 9〕);改造前之 145 案原樣對現行 src 145 passing(未傳 `onTrace` 之行為不變);eslint 對改動檔 0 error;負載試驗(同一批 7 檔、94 案、各 5 次):本輪改寫之 48 案失敗次數 CPU 壓力 0→0、事件迴圈阻塞 400:1000 5→0、重度阻塞 1500:3000 10→0;**變異驗證未完成**:12 項(S-M1～S-M8、C-M1～C-M4)之腳本已備(`tmp/tm-broadcast/mut.mjs`,同證據夾 `agent-out/tm-broadcast-evidence/scripts/`),僅 S-M1 一項已得(新測試 1／68 案失敗,擊殺),其餘待下一輪取得測試鎖後一次執行(見 tm-broadcast 報告 §5);指定形式之 `quiet-run --lock … npm test` 摘要亦待補(等價之全套於獨佔鎖內兩次 166／0).
 - 前次驗證:2026-10-24(broadcast-run03)`npm test` 連跑 3 次皆 145 passing.broadcast-run02 時 w-serv-webdata 之 9 檔測試(複本,未動該 repo;其以未提供鉤子之方式使用本套件)對現行碼 155 passing(run03 與 tm-broadcast 皆未重跑,該 repo 不在範圍).
 
 ## 功能現況
@@ -22,6 +23,7 @@
 | **輪詢之身分驗證鉤子**:伺服端 `opt.verifyPolling`、前端 `opt.getToken`、固定鍵 `__sysToken__` | **完成(2026-10-23,待發布)** | **R11**、R04 | `unit-server-verify-polling`(31)、`unit-client-get-token`(11)、`api-broadcast-verify-polling`(4,埠 8098) |
 
 | **觀察回調 `opt.onTrace`**(前端:start/tick/request/result/stop;伺服端:alive 轉交/prune/stop;兩端共用:emit/deliver/report):測試以事件同步而非固定等待 | **完成(2026-10-29,待發布與主控核可事件命名)** | **R13** | `unit-trace-client`(12)、`unit-trace-server`(9);C 類測試改寫:`unit-listener-error`、`unit-server-clear`、`unit-client-construct`、`unit-server-construct`、`unit-server-verify-polling`、`api-broadcast-polling`、`api-broadcast-verify-polling` |
+| **診斷輸出經 wsemi `getDiag`**(預設只輸出標籤與安全摘要、不含錯誤值;兩端 `opt.logDetail`/`opt.funLog`;token 遮罩;監聽器拋錯由本套件自行攔截不交 wsemi `evEmit`) | **完成(2026-10-31,待發布;破壞性:console 輸出格式)** | **R14** | `unit-diag-output`(27);`unit-listener-error` 2 案斷言改為本套件標籤 |
 
 ## 已知缺口(皆為刻意不修或範圍外,詳見規則帳本第 2 節)
 
@@ -32,6 +34,9 @@
 - (已解決,broadcast-run02,主控 2026-10-24 裁定)輪詢輸入中的 `__sysToken__` 一律剝除,不論是否提供鉤子:含該鍵者取副本去鍵後交付、不改動原物件;不含該鍵者原物件交付(R11-4).
 
 ## 待辦與下游
+
+- 待裁示(R14,2026-10-31):①`error` **事件**之 `err`(使用端監聽者取得者)是否依 D3 經 `diag.err` 遮罩——本輪不改,維持原值(身分不變;JSDoc、README 已載「使用端自行輸出須自行處理」);②wsemi `evEmit` 提供診斷輸出之注入點後,本套件 `genEeEmit.mjs` 之 funEmit 攔截可移除(目前為不改 wsemi 之等價作法).
+- 下游(R14):w-serv-webdata、w-sync-webdata、w-serv-hapi 之測試對本套件之 `error` 事件內容(`{ msg, err }`)與觀察回調 `report`(`via:'event'`)之斷言不受影響(grep 未見其斷言本套件 console 文字;未實跑下游測試);w-serv-webdata 現以 `{ verifyPolling, onTrace }`(`WServWebdataServer.mjs:531`)與 `{ getToken, onTrace }`(`WServWebdataClient.mjs:293`)建構本套件,未轉傳 `logDetail`/`funLog`,故本套件之診斷輸出於其堆疊內走預設(安全摘要);若要使其 `logDetail`/`funLog` 涵蓋本套件之診斷輸出,須於該兩處加傳(下游自行決定,非必做;w-serv-hapi、w-sync-webdata 不直接建構本套件).
 
 - 下游(broadcast-run03,R12):w-serv-webdata 主責 agent 實測(`webdata-run01-修正報告.md` L22 ③)之「離線後 `clientLeave` 先發出、佇列後刪,約 1 秒內他人以同一 clientId 重新綁定可取得遺留廣播」已由本套件 R12 處理(待發布);w-serv-webdata 端不必改,升版後即生效.
 

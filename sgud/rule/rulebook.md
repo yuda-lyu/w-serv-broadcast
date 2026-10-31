@@ -9,7 +9,7 @@
 
 ### R01 派發之單一擁有者與停止閘門
 
-- 規則:本套件之事件一律經 `Ge` 派發(脫勾 1ms、監聽器拋錯隔離、error 為 `{msg,err}`);停止後(含停止前已排定、停止時在途之輪詢結果)不再派發本套件之事件,於派發當下判斷;唯伺服端停止時之補發(clientLeave/clientChange)走 `eeEmit.final`;停止後之監聽器拋錯通報(含補發事件之監聽器)一律 console.error;本套件自發之 error 於派發當下無 error 監聽者時 console.error.
+- 規則:本套件之事件一律經 `Ge` 派發(脫勾 1ms、監聽器拋錯隔離、error 為 `{msg,err}`);停止後(含停止前已排定、停止時在途之輪詢結果)不再派發本套件之事件,於派發當下判斷;唯伺服端停止時之補發(clientLeave/clientChange)走 `eeEmit.final`;停止後之監聽器拋錯通報(含補發事件之監聽器)一律改為診斷輸出(原 console.error,2026-10-31 起經 wsemi `getDiag`,預設只輸出標籤與安全摘要,見 R14);本套件自發之 error 於派發當下無 error 監聽者時同.
 - 盤點:`grep -n "eeEmit(\|eeEmit.final(\|ev.emit(" src/*.mjs`
 - 站點:經 eeEmit——`Cl:137`(error,唯一出口,failPolling 內)、`:200` openOnce、`:205` open、`:213` broadcast;`Sv:125` clientEnter、`:132` clientLeave、`:134` clientChange、`:177` error(failPoll)、`:234` error(拒絕,R11)、`:253` error(放行後回覆再失敗之保底,R11);補發 `Sv:313`、`:314`(final);原生 emit 只在 `Ge:55`、`:74`(唯一擁有者).停止判斷:`Ge:51`、`:59`、`:84`;前端在途結果早退 `Cl:187`、`:222`(含中止所致之拒絕,R10)、`Cl:157`(getToken 期間停止,R11);伺服端驗證結算後之停止判斷 `Sv:228`、`:246`(R11).全部已套.(2026-10-23 broadcast-run01 後之行號.)
 - 範圍限制(刻意):通訊物件自身之事件不在本規則內(其他呼叫之 error 於停止後照常);本套件輪詢之請求、重試與其 error 由 R10 中止(通訊物件須支援 opt.signal,不支援者見 L1);呼叫當下那次派發之其餘監聽器仍會收到(含於通訊物件之 error 監聽器內停止者;與 DOM 相同,不包裝監聽器).(原載「通訊物件自身之事件與重試不在本規則內(裁決 Q8)」,2026-10-13 依 w-converhp 2.1.8 之 opt.signal 改寫.)
@@ -124,6 +124,33 @@
 - `prune.removed` 為保底路徑之計數:離線時已先刪佇列(R12),正常運作下恆為 0,無法由輸入觸發 `removed>0`,測試只斷言 `removed: 0` 與 `queues`(`unit-trace-server` 假時鐘案:在線者之佇列每次修剪皆保留、離線後為 0).
 - 測試:見第 5 節.
 
+### R14 診斷輸出一律經 wsemi `getDiag`,預設只輸出標籤與安全摘要,不含錯誤值(2026-10-31 主控任務 20261031101856 之 broadcast,排程第 158 項;規格 `C:\opensrcOper\dspec\診斷輸出與遮罩.md` D1~D4,本節只記本套件之落地)
+
+- 起因:無 error 監聽者時 `console.error('[w-serv-broadcast] msg', err)` 輸出 error 事件之 `err` 原值(伺服端為 `verifyPolling` 之回傳值/所拋之值,前端為 `getToken` 所拋之值或不合協定之回應原值,可能含 token 或使用者識別);另 wsemi `evEmit` 於「監聽器拋錯且無 error 監聽者」、「error 事件本身之監聽器拋錯」、「通報時 error 監聽器亦拋錯」時亦以 `console.error` 輸出所拋之原值(wsemi 無注入診斷輸出之介面,見下).
+- 規則:
+  1. 本套件之診斷輸出(`console.error`、`console.log`)一律經 `src/genDiag.mjs` 之 `diag`(wsemi `getDiag` 實例,D1 單一實作),src 內除該檔外不得直接呼叫 `console`.預設只輸出固定標籤 `[w-serv-broadcast] <msg>` 與安全摘要 `{ src, name?, errType, errCode? }`(`SAFE_KEYS=['src','name']`;`errType`/`errCode` 由 `diag.brief` 依 wsemi 白名單),**不含值**(D2);`opt.logDetail===true` 輸出遮罩後之細節;`opt.funLog(label, safe, detail)` 給予時只交給它(`noDetail` 者二引數).
+  2. 兩端建構子收 `opt.logDetail`、`opt.funLog`;有給(非 undefined、null)而型別不合(logDetail 非布林、funLog 非函數)於建構時拋 `invalid opt.logDetail`/`invalid opt.funLog`(同 w-serv-webdata `checkOptLog`),**先於任何配置**(R04:不殘留計時器、監聽、掛載屬性).
+  3. 遮罩:`getDiag` 之通用規則(憑證樣式、`Bearer`、`password`/`token` 鍵等)＋本實例見過之 token(伺服端:輪詢輸入之 `__sysToken__`,前端:`getToken` 所得)——`remember(token)` 記於有界集合(上限 64,淘汰最舊),`secrets` 為函數形式,每次輸出取當下清單(同 w-serv-webdata 之 token 簿作法).
+  4. **監聽器拋錯由 `genEeEmit` 之派發函數(funEmit)自行攔截與通報,不交給 wsemi `evEmit`**(wsemi 之 `evEmit.mjs:96,101` 直接 `console.error` 原值、無注入點;不得修改 wsemi,故在本套件使 funEmit 永不外拋,`evEmit` 之 catch 不可達):①停止後(含補發事件)、②拋錯者為 error 監聽器本身、③無 error 監聽者 → 診斷輸出(`src:'listener'`,`name:事件名`,label `listener of event[x] error`);④其餘(有 error 監聽者、停止前)→ 仍發 `{ msg:'listener of event[x] error', err }` 之 error 事件(內容為原值);⑤error 事件之監聽器於通報時再拋錯 → 該拋錯診斷輸出(label `listener of event[error] error`),觀察回調先通知此(`name:'error'`,`via:'console'`)再通知原事件之 `via:'event'`;⑥funEmit 內部失敗(例如事件物件之 `listenerCount` 拋錯)→ 診斷輸出 label `internal error`,觀察回調 `report`(`src:'error'`,`msg:'internal error'`,`via:'console'`).
+  5. 不變:error 事件之內容 `{ msg, err }` 與 `err` 之身分(原值,不遮罩——監聽者為使用端程式;使用端自行輸出時須自行處理,JSDoc 與 README 已載);停止閘門、deliver 先於 report 之順序、`emit`/`deliver` 觀察事件;有 error 監聽者時不輸出.
+- 站點全集與判準(盤點:`grep -rn "console\." src/*.mjs` 只應命中 `genDiag.mjs` 之註解;`grep -rn "diag(" src/*.mjs`):
+
+| # | 站點 | 路徑 | 判準 |
+|---|---|---|---|
+| S1 | 原 `genEeEmit.mjs:49` `report` | 本套件自發 error 且無 error 監聽者(伺服端 `failPoll`/`verifyPolling` 拒絕與拋錯/輪詢處理失敗;前端 `failPolling`) | 屬實,已套(`report(...,'error')`,`genEeEmit.mjs:105`) |
+| S2 | 原 `genEeEmit.mjs:60-66` | 停止後之監聽器拋錯(含補發事件) | 屬實,已套(`reportListener`,`:70`) |
+| S3 | wsemi `evEmit.mjs:96`(經 `evEmitDelay`) | 監聽器拋錯且無 error 監聽者(停止前) | 屬實(wsemi 輸出原值),已套:funEmit 攔截(`:70`) |
+| S4 | wsemi `evEmit.mjs:96`(`name==='error'`) | error 監聽器自身拋錯 | 屬實,已套(同 S3) |
+| S5 | wsemi `evEmit.mjs:101` | 通報時 error 監聽器亦拋錯(輸出兩個原值) | 屬實,已套(`:82`) |
+| S6 | `WServBroadcastServer.mjs:86` | 建構提示(固定字串,無外來值) | **不屬實**(無值外洩);仍改經 `diag`(預設輸出不變,使 `funLog` 取得全部診斷輸出) |
+| S7 | 前端 `src` | 無 `console.*` | 不適用 |
+| S8 | README、JSDoc 範例、`scl.mjs`、`srv.mjs`、`web.html`、`test/**` 之 `console.log` | 使用端範例碼/測試輔助,非套件輸出 | 不改;README 加註 error 事件內容不遮罩 |
+| S9 | 套件外:通訊物件(w-converhp)自身之輸出 | 本套件不控 | 範圍外 |
+| S10 | 依賴 wsemi `alive.mjs:218` `console.log('trigger need key')` | 固定字串,無值;只在 key 非有效字串時,本套件於 `ea.trigger` 之前已拒絕非字串/空 clientId(R02) | 不屬實(無值且不可達) |
+
+- 不涵蓋(待裁示,見報告):①`error` **事件**之 `err`(使用端監聽者取得之內容)是否依 D3 經 `diag.err` 遮罩——本輪不改(會改變 `err` 身分,既有契約與測試釘選原值);②wsemi `evEmit` 提供診斷輸出注入點(`funReport`/`diag`)後,本套件之攔截可移除(`genEeEmit.mjs:funEmitOf`),本輪不動 wsemi,列入報告待裁示,由主控決定是否對 wsemi 提建議.
+- 測試:`test/unit-diag-output.test.mjs`(27 案)、`test/unit-listener-error.test.mjs`(2 案斷言由 wsemi 字樣改為本套件標籤).變異 13 項見報告.
+
 ## 2. 已知限制(刻意不修或範圍外)
 
 - L1 停止時有輪詢在途而通訊物件不支援 opt.signal(WConverhpClient ≤ 2.1.7、或包裝 execute 而只轉交 3 個參數者):該請求照常完成或重試並發其自身 error,行程待其結束;本套件只丟棄其結果(R01;已載 JSDoc).生產堆疊之通訊物件由 w-serv-hapi 建立,其升至 w-converhp ≥ 2.1.8 後 R10 才在生產堆疊生效.(原載「通訊物件仍重試並發其自身 error,本套件無法中止(execute 無中止介面;裁決 Q8)」,2026-10-13 依 w-converhp 2.1.8 改寫,見 R10.)
@@ -154,6 +181,7 @@
 - (broadcast-run01,主控任務 20261023213314,待發布,版號由主控決定;相容)新增伺服端 `opt.verifyPolling`、前端 `opt.getToken` 兩個選項(皆可省略;省略時行為與 1.1.10 相同,惟輸入含 `__sysToken__` 者見下 broadcast-run02 條).注入 verifyPolling 後:①鉤子回非 true 者(例如未帶/帶錯 token,由鉤子決定)之輪詢被拒(`[sys:polling] permission denied`),前端每輪發 error、不 open;②鉤子要求 token 時需前端同時提供 getToken(部署順序:先升伺服端並注入、再升前端;舊前端被拒至重新整理);③clientEnter/clientLeave 之 data 不含 `__sysToken__`;④給了非函數之 verifyPolling/getToken 於建構時拋錯.內部新增 `src/pollingTokenKey.mjs`.
 - (broadcast-run02,主控任務 20261023213314,待發布,與 run01 同批;主控 2026-10-24 裁定)**未提供 verifyPolling 時亦剝除輪詢輸入中的 `__sysToken__`**(取代 run01「僅注入時剝」):輸入含自有鍵 `__sysToken__` 者,clientEnter、clientLeave、getClients 之 data 為去鍵副本,呼叫端原物件不動;不含該鍵者行為與修前完全相同(原物件交付、同步回應).可見差異只限含該鍵之輸入,而該鍵只有設了 `getToken` 之新版前端才會送出(自有套件庫內使用端 w-serv-webdata 目前未送).
 - (broadcast-run03,主控任務 20261023213314,待發布,版號由主控決定;相容)**離線時先清除該 clientId 之佇列,才發出 clientLeave/clientChange**(R12):修前佇列由 1 秒修剪計時器於離線後最多 1 秒才刪,期間以同一 clientId 輪詢者(例如在 clientLeave 內解除 clientId 與身分綁定後、他人重新綁定同一 clientId)會取得離線者遺留之廣播.可見差異只有:clientLeave 發出時 `getMessages()` 已無該鍵;離線後、重新輪詢前之 `broadcast` 不再進入該 clientId 之舊佇列;其後以同一 clientId 輪詢者得新空佇列.事件名、順序(clientLeave 先於 clientChange)、payload 與在線偵測(10 秒)皆不變.
+- (broadcast 第 158 項,主控任務 20261031101856,待發布,版號由主控決定;**破壞性:輸出格式**)**本套件不再以 console 輸出錯誤值**(R14):修前無 error 監聽者時 `console.error('[w-serv-broadcast] <msg>', err)` 輸出原 `err`,wsemi `evEmit` 另輸出 `[wsemi w-serv-broadcast] listener of '<事件>' threw:` 加所拋之原值(監聽器拋錯且無 error 監聽者、error 監聽器自身拋錯、通報時 error 監聽器再拋錯);修後只輸出 `[w-serv-broadcast] <msg>`(監聽器拋錯為 `listener of event[<事件>] error`,error 監聽器亦同)加安全摘要 `{ src, name?, errType, errCode? }`;`opt.logDetail:true` 或 `opt.funLog` 取遮罩後之細節.剖析舊輸出文字者須更新.新增兩端 `opt.logDetail`(非布林拋錯)、`opt.funLog`(非函數拋錯);error 事件內容 `{ msg, err }`、事件順序、停止語意不變;觀察回調新增 `report`(`src:'listener'`,`name:'error'`,`via:'console'`,error 監聽器拋錯時)與 `report`(`src:'error'`,`msg:'internal error'`,`via:'console'`,派發函數內部失敗).`wsemi` 依賴範圍升至 `^1.9.33`(`getDiag`).
 - (主控任務 20261013214634 之 run02 實作,待發布,預期 1.1.9)前端:①建構時要求執行環境內建 AbortController,缺者拋 `AbortController is not available`(Node 14.17 以前、Chrome 65 以前等;裁決 Q1);②輪詢之 execute 多帶第 4 參數 `{ signal }`——自訂通訊物件之第 4 參數另有語意者受影響,包裝 execute 者須原樣轉交;③clearBroadcast 中止在途之輪詢請求——通訊物件支援 opt.signal 時,停止後不再有該請求之重試、error、重試訊息與 getToken 呼叫,伺服端於驗證中被中斷時記一則其自身之 error(L7).API 不變.版號由主控決定.
 
 ## 5. 測試對照
@@ -177,6 +205,7 @@
 | `test/unit-server-leave-queue.test.mjs` | unit(含真實時間約 13 秒) | R12(離線時先清佇列再發 clientLeave)、R07(停止補發)、R11(注入組:驗證在途跨離線) | 14 |
 | `test/unit-trace-client.test.mjs` | unit | R13(前端 `opt.onTrace`:事件內容與順序、凍結/無接收者/原始值、P3/P4 五種回調) | 12 |
 | `test/unit-trace-server.test.mjs` | unit(含假時鐘) | R13(伺服端 `opt.onTrace`:alive 轉交、prune、補發與 stop、凍結/無接收者/原始值、P3/P4 五種回調) | 9 |
+| `test/unit-diag-output.test.mjs` | unit | R14(預設只輸出標籤與安全摘要:伺服端 7 路徑+內部失敗 1、前端 5 路徑;有 error 監聽者時不輸出且 `err` 原值;`logDetail`/`funLog`/`noDetail`/funLog 拋錯;token 遮罩;建構提示;建構期型別檢核 4 案) | 27 |
 | `test/tools/helpers.mjs` | 共用工具(非測試;`advance` 為假時鐘逐毫秒推進) | — | — |
 | `test/tools/tracer.mjs` | 共用工具(非測試;`genTracer` 記錄 `onTrace` 事件並提供 `wait(cond, n, from)`) | R13 | — |
 | `test/tools/serverReady.mjs` | 共用工具(非測試;`waitServerReady` 以連線探測待真 WConverhpServer 可服務) | R13 | — |

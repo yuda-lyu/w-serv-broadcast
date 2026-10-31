@@ -61,7 +61,24 @@ let cli = new WServBroadcastClient(instWConverClient, {
 })
 ```
 
+## Diagnostic output (`opt.logDetail`, `opt.funLog`)
+The package never writes error values to the console by itself. Whenever it has to report something that no `error` listener receives, it goes through the shared diagnostic output of `wsemi` (`getDiag`):
+
+* a self-reported error (`{ msg, err }`, e.g. `[sys:polling] permission denied`, `[sys:polling] verifyPolling error`, a failed poll) when **no `error` listener** is registered;
+* a throw of a listener of one of the package's events when **no `error` listener** is registered, after the instance was stopped (`clearBroadcast`), or when the thrown listener is the `error` listener itself (also when the `error` listener throws while the package reports another listener's throw);
+* the server hint that `instWConverServer` is not an effective object (fixed text).
+
+By default (`console.error`, hint via `console.log`) only a fixed label and a **safe summary** is printed, never the value: `console.error('[w-serv-broadcast] [sys:polling] permission denied', { src: 'error', errType: 'string' })`. The summary has `src` (`'error'` for a self-reported error, `'listener'` for a listener throw), `name` (the event name of the listener, `'listener'` only), `errType` (the class name of an error, or the `typeof` name of another value) and `errCode` (only a code from the built-in whitelist). The value (the return value or the thrown value of `verifyPolling` or `getToken`, the thrown value of a listener, an invalid poll response) can contain a token or a user identity, so it is not printed.
+
+* `opt.logDetail: true` (both constructors): print the detail instead of the summary, `console.error(label, detail)`, where `detail` is the value after masking: credentials (URLs with account and password, `password` / `token` / `Authorization` / `Bearer` values, ...) and every token the instance has seen (`__sysToken__` of the polling inputs on the server, the results of `getToken` on the client; the most recent 64) become `***`.
+* `opt.funLog(label, safe, detail)` (both constructors): the diagnostic output goes only to this function (nothing is written to the console, `logDetail` has no effect); `detail` is the masked detail as above. A throw or a rejected promise of `funLog` is swallowed and never affects the package. A `funLog` with the property `noDetail === true` is called with `(label, safe)` only.
+* A `logDetail` that is given and not a boolean, or a `funLog` that is given and not a function (`undefined` and `null` are "not given"), makes the constructor throw (`invalid opt.logDetail` / `invalid opt.funLog`) before anything is set up.
+
+The content of the `error` **event** is not changed: it is still `{ msg, err }` with the original `err` (not masked), because the listener is your code. If you log it, do not print `err` blindly (`err` can hold the return value or the thrown value of your `verifyPolling` / `getToken`).
+
 ## Upgrade Notes
+* **Breaking change (diagnostic output)**: the package no longer prints the value of an error to the console. Before, `console.error('[w-serv-broadcast] <msg>', err)` printed the original `err` when there was no `error` listener, after a stop, and the `wsemi` event dispatcher printed `[wsemi w-serv-broadcast] listener of '<event>' threw:` with the original thrown value when a listener threw without an `error` listener or when the `error` listener itself threw. Now only a label and a safe summary are printed (see "Diagnostic output"); the label of a listener throw is `[w-serv-broadcast] listener of event[<event>] error` (also for the `error` listener). Use `opt.logDetail: true` or `opt.funLog` to get the detail (masked). Code that parsed these console lines must be updated; the `error` event, its `{ msg, err }` content, the order of events and the observation events are unchanged (new: `report` with `src: 'listener'`, `name: 'error'`, `via: 'console'` for an `error` listener that throws).
+* New optional `logDetail` / `funLog` options on both constructors (see "Diagnostic output"); a given value of the wrong type makes the constructor throw. Requires `wsemi` 1.9.33 or later.
 * New optional `onTrace` option on both constructors (see above). Not providing it keeps the previous behavior; there are no breaking changes.
 * Going offline (online timeout) now clears the `clientId`'s queue **before** `clientLeave` / `clientChange` are emitted. Previously the queue was removed by a timer up to 1 second later, so a poll with the same `clientId` inside that window (for example another user who just got the `clientId` bound after your `clientLeave` handler released it) received the broadcasts left behind. The events, their payloads and the online detection are unchanged.
 * New server option `verifyPolling` and new client option `getToken` (both optional). **Not providing them keeps the previous behavior** (polling is not verified; for an input without `__sysToken__` the input object is handed to `clientEnter` / `clientLeave` as is, replies stay synchronous). Existing code needs no change, but if polling must be restricted to authenticated users you must inject `verifyPolling` on the server **and** provide `getToken` on the client.
@@ -220,14 +237,14 @@ setTimeout(() => {
 
 Add script for w-serv-broadcast-client.
 ```alias
-<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.1.14/dist/w-serv-broadcast-client.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.1.15/dist/w-serv-broadcast-client.umd.js"></script>
 ```
 
 #### Example for w-serv-broadcast-client in web:
 > **Link:** [[dev source code](https://github.com/yuda-lyu/w-serv-broadcast/blob/master/web.html)]
 ```alias
 <script src="https://cdn.jsdelivr.net/npm/w-converhp/dist/w-converhp-client.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.1.14/dist/w-serv-broadcast-client.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/w-serv-broadcast@1.1.15/dist/w-serv-broadcast-client.umd.js"></script>
 
 //WConverhpClient
 let WConverhpClient = window['w-converhp-client']

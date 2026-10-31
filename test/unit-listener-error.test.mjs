@@ -119,13 +119,13 @@ describe('listener error', function() {
                         rejects.push(msg)
                     },
                 }))
-                //error事件已派發而其監聽器拋錯(ok為false), wsemi於其後同一堆疊內以console.error通報, 本處於該堆疊結束後續行
+                //error事件已派發而其監聽器拋錯(ok為false), 本套件於其後同一堆疊內以console.error通報, 本處於該堆疊結束後續行
                 let e = await tr.wait({ type: 'deliver', name: 'error' })
                 assert.strict.equal(e.ok, false) //契約: error監聽器自身拋錯
             })
             srv.clearBroadcast()
             assert.deepStrictEqual(rejects, ['[sys:polling] error']) //契約: 輪詢例外時以reject回覆前端
-            assert.ok(calls.some((args) => String(args[0]).includes(`[wsemi w-serv-broadcast] listener of 'error' threw`)), `應以console.error輸出, 實得: ${JSON.stringify(calls.map((args) => String(args[0])))}`) //契約: error監聽器拋錯改以console.error輸出
+            assert.ok(calls.some((args) => String(args[0]).includes(`[w-serv-broadcast] listener of event[error] error`)), `應以console.error輸出, 實得: ${JSON.stringify(calls.map((args) => String(args[0])))}`) //契約: error監聽器拋錯改以console.error輸出(經getDiag, 預設只輸出標籤與安全摘要, 見unit-diag-output)
         })
 
         it('輪詢例外時之error事件內容為{ msg, err }', async function() {
@@ -239,12 +239,12 @@ describe('listener error', function() {
                 throw new Error('boom-error')
             })
             let calls = await captureConsoleError(async () => {
-                //error事件已派發而其監聽器拋錯(ok為false), wsemi於其後同一堆疊內以console.error通報, 本處於該堆疊結束後續行
+                //error事件已派發而其監聽器拋錯(ok為false), 本套件於其後同一堆疊內以console.error通報, 本處於該堆疊結束後續行
                 let e = await tr.wait({ type: 'deliver', name: 'error' })
                 assert.strict.equal(e.ok, false) //契約: error監聽器自身拋錯
             })
             cli.clearBroadcast()
-            assert.ok(calls.some((args) => String(args[0]).includes(`[wsemi w-serv-broadcast] listener of 'error' threw`)), `應以console.error輸出, 實得: ${JSON.stringify(calls.map((args) => String(args[0])))}`) //契約: error監聽器拋錯改以console.error輸出
+            assert.ok(calls.some((args) => String(args[0]).includes(`[w-serv-broadcast] listener of event[error] error`)), `應以console.error輸出, 實得: ${JSON.stringify(calls.map((args) => String(args[0])))}`) //契約: error監聽器拋錯改以console.error輸出(經getDiag, 預設只輸出標籤與安全摘要, 見unit-diag-output)
         })
 
         it('輪詢失敗時之error事件內容為{ msg, err }', async function() {

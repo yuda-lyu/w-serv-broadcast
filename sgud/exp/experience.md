@@ -174,3 +174,16 @@
 - 陷阱二:**背景指令之 `timeout` 含取鎖等待**——以 `timeout: 3300000`(55 分)啟動之 quiet-run,排隊逾 55 分即被工具終止,排隊位置歸零(本輪 07:58 排隊、08:53 被終止,恰在他套件之獨佔輪替前);排隊類指令一律用背景最長 `7200000`.
 - 陷阱三:變異驗證若變異使計時器殘留(如修剪計時器不清除),mocha 不結束而卡住;變異腳本之 mocha 一律加 `--exit`.
 
+### E33 wsemi `evEmit` 於監聽器拋錯時直接 `console.error` 原值且無注入點,本套件在派發函數內自行攔截(2026-10-31,broadcast 第 158 項;規則 R14)
+
+- 事實:`evEmit.mjs:92-101`:監聽器同步拋錯時,有 error 監聽者且事件名非 error 才 `emit('error', {fun:'listener',...})`,否則(無 error 監聽者、error 事件本身之監聽器拋錯、通報時 error 監聽器亦拋錯)`console.error('[wsemi <tag>] listener of ... threw:', err)`——輸出所拋之原值,`opt` 只有 `funSettle`/`funEmit`/`tag`,無診斷輸出之注入點.本套件原只改了 `genEeEmit` 自己之 `report`(`console.error(msg, err)`),這三條 wsemi 路徑仍輸出原值(修前紅證據:`[wsemi w-serv-broadcast] listener of 'clientEnter' threw: Error: boom tok-…`).
+- 做法:`funEmitOf` 內以 try/catch 自行攔截 `ev.emit` 之拋錯並通報,使傳給 `evEmitDelay` 之 `funEmit` **永不外拋**(最外層再包一層 try/catch,內部失敗亦診斷輸出,label `internal error`),`evEmit` 之 catch 不可達.不改 wsemi(不得改他套件);wsemi 若日後提供診斷輸出之注入點,可移除此攔截(列待裁示).
+- 陷阱一:`deliver` 觀察事件對「本套件自發之 error 且無 error 監聽者」**不發**(該路徑在 `deliver` 之前返回,只發 `report`),測試以 `deliver name:'error'` 為同步點會逾時;無監聽者之自發 error 用 `report`(`src:'error'`,`via:'console'`),有 error 監聽者用 `deliver`.
+- 陷阱二:getDiag 之 `safe` 只收 `SAFE_KEYS`(`['src','name']`)與 `errType`/`errCode`,白名單外之鍵(如 `err`、`detail`)被丟棄——故「摘要夾帶值」要靠變異(M9:同時放寬白名單與 safe 內容)才測得到,單改 safe 內容為等價變異.
+- 陷阱三(同 E23、E32):修前紅之第一次執行因新測試於斷言失敗時未走到 `clearBroadcast`/`cli.clearBroadcast()`,殘留計時器使 mocha 不結束,quiet-run 掛滿 `--timeout 600`(10 分 24 秒)並須以 `taskkill /F /T /PID <mocha>` 收掉自己之行程;紅燈驗證之 mocha 一律加 `--exit`.
+
+### E34 診斷輸出之 token 遮罩要「記住見過之 token」,通用規則不足(2026-10-31,broadcast 第 158 項)
+
+- 事實:`getDiag` 之通用規則只認憑證樣式(網址帳密、`Bearer`、`password`/`token` 鍵之值);錯誤訊息內之裸 token 字串(`lookup failed for tok-Zq83mXk2`)只有 `secrets` 內之 `values` 才會遮.伺服端之 token 為輪詢輸入 `__sysToken__`、前端為 `getToken` 所得,皆為每請求/每輪不同,故用有界集合(上限 64,淘汰最舊)+函數形式之 `secrets`(每次輸出取當下清單);`remember` 在驗證/送出之前呼叫.
+- 驗證:變異 M5(伺服端不記住)、M6(前端不記住)皆被 `logDetail`/`funLog` 之 token 遮罩案抓到.
+
