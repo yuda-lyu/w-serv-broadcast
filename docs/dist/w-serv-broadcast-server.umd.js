@@ -1,5 +1,5 @@
 /*!
- * w-serv-broadcast-server v1.1.42
+ * w-serv-broadcast-server v1.1.43
  * (c) 2018-2021 yuda-lyu(semisphere)
  * Released under the MIT License.
  */
